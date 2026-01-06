@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cloud Workout Tracker</title>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script async defer src="https://accounts.google.com/gsi/client"></script>
+  <script async defer src="https://apis.google.com/js/api.js"></script>
+</head>
+<body class="bg-slate-900 text-white">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    const CLIENT_ID = '993686805304-ejcjgvg9or29fi8e7gsek1kqljob2hok.apps.googleusercontent.com';
+    const SCOPES = 'https://www.googleapis.com/auth/drive.file';
+
+    function App() {
+      const [isLoggedIn, setIsLoggedIn] = useState(false);
+      const [tokenClient, setTokenClient] = useState(null);
+      const [history, setHistory] = useState([]);
+      const [loading, setLoading] = useState(true);
+
+      useEffect(() => {
+        const initGoogle = () => {
+          try {
+            const client = google.accounts.oauth2.initTokenClient({
+              client_id: CLIENT_ID,
+              scope: SCOPES,
+              callback: async (resp) => {
+                if (resp.access_token) {
+                  setIsLoggedIn(true);
+                  // Trigger cloud load here
+                }
+              },
+            });
+            setTokenClient(client);
+            setLoading(false);
+          } catch (e) {
+            console.error("Waiting for Google libraries...", e);
+            setTimeout(initGoogle, 500); // Try again in half a second
+          }
+        };
+        initGoogle();
+      }, []);
+
+      if (loading) return <div className="flex h-screen items-center justify-center">Loading Libraries...</div>;
+
+      return (
+        <div className="flex flex-col items-center justify-center min-h-screen p-6">
+          {!isLoggedIn ? (
+            <div className="bg-slate-800 p-10 rounded-3xl text-center shadow-xl border border-slate-700 max-w-sm">
+              <div className="text-6xl mb-4">🏋️</div>
+              <h1 className="text-2xl font-bold mb-6">Workout Tracker</h1>
+              <button 
+                onClick={() => tokenClient.requestAccessToken()} 
+                className="bg-white text-black px-8 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-slate-200 w-full justify-center transition-all"
+              >
+                Sign in with Google
+              </button>
+            </div>
+          ) : (
+            <div className="text-center">
+              <h1 className="text-3xl font-bold text-green-500">Connected!</h1>
+              <p className="text-slate-400 mt-2">Ready to sync to Drive.</p>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
