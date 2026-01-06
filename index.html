@@ -11,7 +11,7 @@
   <script async defer src="https://accounts.google.com/gsi/client"></script>
   <script async defer src="https://apis.google.com/js/api.js"></script>
 </head>
-<body class="bg-slate-900 text-white">
+<body>
   <div id="root"></div>
 
   <script type="text/babel">
@@ -20,62 +20,219 @@
     const CLIENT_ID = '993686805304-ejcjgvg9or29fi8e7gsek1kqljob2hok.apps.googleusercontent.com';
     const SCOPES = 'https://www.googleapis.com/auth/drive.file';
 
-    function App() {
+    // Icons
+    const Play = ({ className }) => (<svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>);
+    const Pause = ({ className }) => (<svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>);
+    const RotateCcw = ({ className }) => (<svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>);
+    const Clock = ({ className }) => (<svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>);
+    const ArrowLeft = ({ className }) => (<svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>);
+    const Dumbbell = ({ className }) => (<svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.5 10.5L12 3m0 0l7.5 7.5M12 3v18" /></svg>);
+
+    const workoutData = {
+      1: { type: 'rounds', rounds: 5, exercises: [{ id: 1, name: '20m dumbbell lunges' }, { id: 2, name: '20m sled push', trackWeight: true }, { id: 3, name: '500m rowing' }, { id: 4, name: '15 goblet squats' }, { id: 5, name: '15 box jumps' }] },
+      2: { type: 'sets', cardio: { name: '15 min run', duration: 15 }, exercises: [{ id: 1, name: 'Bench Press', sets: 3, targetReps: 5 }, { id: 2, name: 'Cable Rows', sets: 3, targetReps: 6 }, { id: 3, name: 'Leg Press', sets: 3, targetReps: 10 }, { id: 4, name: 'Overhead Press', sets: 3, targetReps: 8 }, { id: 5, name: 'Leg Curls', sets: 3, targetReps: 12 }] },
+      3: { type: 'rounds', rounds: 5, exercises: [{ id: 1, name: '10 pull-ups' }, { id: 2, name: '10 dips' }, { id: 3, name: '10 barbell thrusters' }, { id: 4, name: '10m sled pull', trackWeight: true }, { id: 5, name: '15 push-ups' }, { id: 6, name: '500m rowing' }] },
+      4: { type: 'sets', cardio: { name: '15 min run', duration: 15 }, exercises: [{ id: 1, name: 'Incline Dumbbell Press', sets: 3, targetReps: 8 }, { id: 2, name: 'Pull-ups/Lat Pulldown', sets: 3, targetReps: 8 }, { id: 3, name: 'Bulgarian Split Squats', sets: 3, targetReps: 10 }, { id: 4, name: 'Lateral Raises', sets: 3, targetReps: 12 }, { id: 5, name: 'Leg Extensions', sets: 3, targetReps: 12 }] },
+      5: { type: 'other', exercises: [] }
+    };
+
+    function WorkoutTracker() {
       const [isLoggedIn, setIsLoggedIn] = useState(false);
       const [tokenClient, setTokenClient] = useState(null);
       const [history, setHistory] = useState([]);
-      const [loading, setLoading] = useState(true);
+      const [selectedDay, setSelectedDay] = useState(null);
+      const [showHistory, setShowHistory] = useState(false);
+      const [loading, setLoading] = useState(false);
 
       useEffect(() => {
-        const initGoogle = () => {
-          try {
-            const client = google.accounts.oauth2.initTokenClient({
-              client_id: CLIENT_ID,
-              scope: SCOPES,
-              callback: async (resp) => {
-                if (resp.access_token) {
-                  setIsLoggedIn(true);
-                  // Trigger cloud load here
-                }
-              },
-            });
-            setTokenClient(client);
-            setLoading(false);
-          } catch (e) {
-            console.error("Waiting for Google libraries...", e);
-            setTimeout(initGoogle, 500); // Try again in half a second
-          }
-        };
-        initGoogle();
+        const client = google.accounts.oauth2.initTokenClient({
+          client_id: CLIENT_ID,
+          scope: SCOPES,
+          callback: async (resp) => { if (resp.access_token) { setIsLoggedIn(true); await loadCloudData(); } }
+        });
+        setTokenClient(client);
+        gapi.load('client', () => gapi.client.init({}));
       }, []);
 
-      if (loading) return <div className="flex h-screen items-center justify-center">Loading Libraries...</div>;
+      const loadCloudData = async () => {
+        setLoading(true);
+        try {
+          const res = await fetch('https://www.googleapis.com/drive/v3/files?q=name="workouts.json"', {
+            headers: { Authorization: `Bearer ${gapi.client.getToken().access_token}` }
+          });
+          const data = await res.json();
+          if (data.files?.length > 0) {
+            const fileRes = await fetch(`https://www.googleapis.com/drive/v3/files/${data.files[0].id}?alt=media`, {
+              headers: { Authorization: `Bearer ${gapi.client.getToken().access_token}` }
+            });
+            const content = await fileRes.json();
+            setHistory(content);
+          }
+        } catch (e) { console.error(e); } finally { setLoading(false); }
+      };
+
+      const syncToCloud = async (newList) => {
+        const listRes = await fetch('https://www.googleapis.com/drive/v3/files?q=name="workouts.json"', {
+          headers: { Authorization: `Bearer ${gapi.client.getToken().access_token}` }
+        });
+        const listData = await listRes.json();
+        const fileId = listData.files[0]?.id;
+        const metadata = { name: 'workouts.json', mimeType: 'application/json' };
+        const form = new FormData();
+        form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+        form.append('file', new Blob([JSON.stringify(newList)], { type: 'application/json' }));
+        await fetch(fileId ? `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart` : 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+          method: fileId ? 'PATCH' : 'POST',
+          headers: { Authorization: `Bearer ${gapi.client.getToken().access_token}` },
+          body: form
+        });
+      };
+
+      if (!isLoggedIn) return (
+        <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6 text-white font-sans">
+          <div className="bg-slate-800 p-10 rounded-3xl text-center shadow-xl border border-slate-700 max-w-sm">
+            <h1 className="text-3xl font-bold mb-6">Workout Cloud</h1>
+            <button onClick={() => tokenClient.requestAccessToken()} className="bg-green-600 px-8 py-3 rounded-xl font-bold hover:bg-green-500 w-full transition-all">
+              Sign in with Google
+            </button>
+          </div>
+        </div>
+      );
+
+      if (showHistory) return <HistoryView history={history} onBack={() => setShowHistory(false)} />;
+      if (selectedDay !== null) return <WorkoutScreen day={selectedDay} onBack={() => setSelectedDay(null)} onSave={async (w) => {
+        const newList = [w, ...history];
+        setHistory(newList);
+        await syncToCloud(newList);
+        setSelectedDay(null);
+      }} />;
 
       return (
-        <div className="flex flex-col items-center justify-center min-h-screen p-6">
-          {!isLoggedIn ? (
-            <div className="bg-slate-800 p-10 rounded-3xl text-center shadow-xl border border-slate-700 max-w-sm">
-              <div className="text-6xl mb-4">🏋️</div>
-              <h1 className="text-2xl font-bold mb-6">Workout Tracker</h1>
-              <button 
-                onClick={() => tokenClient.requestAccessToken()} 
-                className="bg-white text-black px-8 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-slate-200 w-full justify-center transition-all"
-              >
-                Sign in with Google
-              </button>
+        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white p-4">
+          <div className="max-w-2xl mx-auto">
+            <h1 className="text-4xl font-bold text-center mb-8">Workout Tracker</h1>
+            <div className="grid gap-4 mb-6">
+              {[1, 2, 3, 4, 5].map(day => (
+                <button key={day} onClick={() => setSelectedDay(day)} className="bg-slate-800 p-6 rounded-2xl border border-slate-700 text-left hover:bg-slate-700 transition-all flex items-center gap-4">
+                  <div className="w-12 h-12 bg-green-600 rounded-full flex items-center justify-center flex-shrink-0">
+                    <Dumbbell className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold">{day === 5 ? 'Other' : `Day ${day}`}</h2>
+                    <p className="text-slate-400 text-sm">Tap to start</p>
+                  </div>
+                </button>
+              ))}
             </div>
-          ) : (
-            <div className="text-center">
-              <h1 className="text-3xl font-bold text-green-500">Connected!</h1>
-              <p className="text-slate-400 mt-2">Ready to sync to Drive.</p>
+            <button onClick={() => setShowHistory(true)} className="w-full bg-slate-800 py-4 rounded-xl border border-slate-700 hover:bg-slate-700 transition-colors">
+              View History
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    function WorkoutScreen({ day, onBack, onSave }) {
+      const workoutConfig = workoutData[day];
+      const isRounds = workoutConfig.type === 'rounds';
+      const isSets = workoutConfig.type === 'sets';
+      const [timer, setTimer] = useState(0);
+      const [isRunning, setIsRunning] = useState(false);
+      const [notes, setNotes] = useState("");
+      const [exercises, setExercises] = useState(() => {
+        if (isRounds) return workoutConfig.exercises.map(ex => ({ ...ex, rounds: 0 }));
+        if (isSets) return workoutConfig.exercises.map(ex => ({ ...ex, completedSets: Array(3).fill(null).map(() => ({ weight: '', reps: '', completed: false })) }));
+        return [];
+      });
+
+      useEffect(() => {
+        let interval;
+        if (isRunning) interval = setInterval(() => setTimer(t => t + 1), 1000);
+        return () => clearInterval(interval);
+      }, [isRunning]);
+
+      const formatTime = (s) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
+
+      return (
+        <div className="min-h-screen bg-slate-900 text-white p-4 max-w-2xl mx-auto">
+          <button onClick={onBack} className="mb-4 flex items-center gap-2 text-slate-400"><ArrowLeft className="w-4 h-4" /> Back</button>
+          <div className="bg-slate-800 rounded-2xl p-8 mb-6 text-center border border-slate-700">
+            <div className="text-6xl font-mono font-bold mb-4">{formatTime(timer)}</div>
+            <div className="flex gap-4 justify-center">
+              <button onClick={() => setIsRunning(!isRunning)} className="bg-green-600 px-8 py-3 rounded-xl font-bold">{isRunning ? 'Pause' : 'Start'}</button>
+              <button onClick={() => setTimer(0)} className="bg-slate-700 px-8 py-3 rounded-xl font-bold">Reset</button>
             </div>
-          )}
+          </div>
+
+          <div className="space-y-4 mb-8">
+            {exercises.map((ex, i) => (
+              <div key={ex.id} className="bg-slate-800 p-6 rounded-2xl border border-slate-700">
+                <h3 className="font-bold text-lg mb-4">{ex.name}</h3>
+                {isSets ? (
+                  <div className="space-y-3">
+                    {ex.completedSets.map((set, idx) => (
+                      <div key={idx} className="flex items-center gap-2">
+                         <button 
+                          onClick={() => {
+                            const updated = [...exercises];
+                            updated[i].completedSets[idx].completed = !updated[i].completedSets[idx].completed;
+                            setExercises(updated);
+                          }}
+                          className={`w-8 h-8 rounded-full border-2 ${set.completed ? 'bg-green-600 border-green-600' : 'border-slate-500'}`}
+                         >{set.completed && '✓'}</button>
+                         <input type="number" placeholder="kg" className="w-20 bg-slate-700 p-2 rounded" value={set.weight} onChange={(e) => {
+                           const updated = [...exercises];
+                           updated[i].completedSets[idx].weight = e.target.value;
+                           setExercises(updated);
+                         }} />
+                         <input type="number" placeholder="reps" className="w-20 bg-slate-700 p-2 rounded" value={set.reps} onChange={(e) => {
+                           const updated = [...exercises];
+                           updated[i].completedSets[idx].reps = e.target.value;
+                           setExercises(updated);
+                         }} />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <button onClick={() => {
+                    const updated = [...exercises];
+                    updated[i].rounds = updated[i].rounds < 5 ? updated[i].rounds + 1 : 0;
+                    setExercises(updated);
+                  }} className="w-full bg-slate-700 py-3 rounded-xl">Round {ex.rounds}/5</button>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <textarea className="w-full bg-slate-800 p-4 rounded-xl border border-slate-700 mb-6" placeholder="Notes..." value={notes} onChange={(e) => setNotes(e.target.value)} />
+          <button onClick={() => onSave({ day: `Day ${day}`, time: timer, notes, date: new Date().toISOString(), exercises })} className="w-full bg-green-600 py-4 rounded-xl font-bold text-lg">Complete Workout</button>
+        </div>
+      );
+    }
+
+    function HistoryView({ history, onBack }) {
+      return (
+        <div className="min-h-screen bg-slate-900 text-white p-4 max-w-2xl mx-auto">
+          <button onClick={onBack} className="mb-4 flex items-center gap-2 text-slate-400"><ArrowLeft className="w-4 h-4" /> Back</button>
+          <h1 className="text-3xl font-bold mb-6">History</h1>
+          <div className="space-y-4">
+            {history.map((h, i) => (
+              <div key={i} className="bg-slate-800 p-6 rounded-2xl border border-slate-700">
+                <div className="flex justify-between items-start mb-2">
+                  <h3 className="text-xl font-bold text-green-400">{h.day}</h3>
+                  <span className="font-mono">{Math.floor(h.time / 60)}:{(h.time % 60).toString().padStart(2, '0')}</span>
+                </div>
+                <p className="text-sm text-slate-400 mb-2">{new Date(h.date).toLocaleDateString()}</p>
+                <p className="text-slate-300 italic">{h.notes}</p>
+              </div>
+            ))}
+          </div>
         </div>
       );
     }
 
     const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(<App />);
+    root.render(React.createElement(WorkoutTracker));
   </script>
 </body>
 </html>
