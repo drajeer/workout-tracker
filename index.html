@@ -47,7 +47,13 @@
         { id: 4, name: '15 goblet squats', trackWeight: true },
         { id: 5, name: '15 box jumps' }
       ]},
-      2: { type: 'sets', cardio: { name: '15 min run', duration: 15 }, exercises: [{ id: 1, name: 'Bench Press', sets: 3, targetReps: 5 }, { id: 2, name: 'Cable Rows', sets: 3, targetReps: 6 }, { id: 3, name: 'Leg Press', sets: 3, targetReps: 10 }, { id: 4, name: 'Overhead Press', sets: 3, targetReps: 8 }, { id: 5, name: 'Leg Curls', sets: 3, targetReps: 12 }] },
+      2: { type: 'sets', cardio: { name: '15 min run', duration: 15 }, exercises: [
+        { id: 1, name: 'Leg Press', sets: 4 }, 
+        { id: 2, name: 'Bench Press', sets: 4 }, 
+        { id: 3, name: 'Cable Row', sets: 4 }, 
+        { id: 4, name: 'Bulgarian Split Squats', sets: 3 }, 
+        { id: 5, name: 'Face Pulls', sets: 3 }
+      ]},
       3: { type: 'rounds', rounds: 3, exercises: [
         { id: 1, name: '10 pull-ups' }, 
         { id: 2, name: '10 dips' }, 
@@ -56,7 +62,14 @@
         { id: 5, name: '15 push-ups' }, 
         { id: 6, name: '500m rowing' }
       ]},
-      4: { type: 'sets', cardio: { name: '15 min run', duration: 15 }, exercises: [{ id: 1, name: 'Incline Dumbbell Press', sets: 3, targetReps: 8 }, { id: 2, name: 'Lat Pulldowns', sets: 3, targetReps: 8 }, { id: 3, name: 'Bulgarian Split Squats', sets: 3, targetReps: 10 }, { id: 4, name: 'Lateral Raises', sets: 3, targetReps: 12 }, { id: 5, name: 'Leg Extensions', sets: 3, targetReps: 12 }] },
+      4: { type: 'sets', cardio: { name: '15 min run', duration: 15 }, exercises: [
+        { id: 1, name: 'Leg Curls', sets: 4 }, 
+        { id: 2, name: 'Overhead Press', sets: 4 }, 
+        { id: 3, name: 'Lat Pulldowns', sets: 4 }, 
+        { id: 4, name: 'Incline Dumbbell Press', sets: 3 }, 
+        { id: 5, name: 'Cable Triceps Pushdowns', sets: 3 },
+        { id: 6, name: 'Dumbbell Curls', sets: 3 }
+      ]},
       5: { type: 'other', exercises: [] }
     };
 
@@ -148,7 +161,7 @@
       const [runDistance, setRunDistance] = useState("");
       const [exercises, setExercises] = useState(() => {
         if (isRounds) return config.exercises.map(ex => ({ ...ex, rounds: 0, weight: ex.trackWeight ? '' : undefined }));
-        if (isSets) return config.exercises.map(ex => ({ ...ex, completedSets: Array(3).fill(null).map(() => ({ weight: '', reps: '', completed: false })) }));
+        if (isSets) return config.exercises.map(ex => ({ ...ex, completedSets: Array(ex.sets).fill(null).map(() => ({ weight: '', reps: '', completed: false })) }));
         return [];
       });
 
