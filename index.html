@@ -44,31 +44,31 @@
         { id: 1, name: '20m dumbbell lunges', trackWeight: true }, 
         { id: 2, name: '20m sled push', trackWeight: true }, 
         { id: 3, name: '500m rowing' }, 
-        { id: 4, name: '15 goblet squats', trackWeight: true },
+        { id: 4, name: '15 goblet squats', trackWeight: true }, 
         { id: 5, name: '15 box jumps' }
       ]},
       2: { type: 'sets', cardio: { name: '15 min run', duration: 15 }, exercises: [
-        { id: 1, name: 'Leg Press', sets: 4 }, 
-        { id: 2, name: 'Bench Press', sets: 4 }, 
-        { id: 3, name: 'Cable Row', sets: 4 }, 
-        { id: 4, name: 'Bulgarian Split Squats', sets: 3 }, 
-        { id: 5, name: 'Face Pulls', sets: 3 }
+        { id: 1, name: 'Leg press', sets: 4 },
+        { id: 2, name: 'Bench press', sets: 4 },
+        { id: 3, name: 'Cable row', sets: 4 },
+        { id: 4, name: 'Bulgarian split squats', sets: 3 },
+        { id: 5, name: 'Face pulls', sets: 3 }
       ]},
       3: { type: 'rounds', rounds: 3, exercises: [
         { id: 1, name: '10 pull-ups' }, 
         { id: 2, name: '10 dips' }, 
-        { id: 3, name: '10 barbell thrusters', trackWeight: true },
+        { id: 3, name: '10 barbell thrusters', trackWeight: true }, 
         { id: 4, name: '10m sled pull', trackWeight: true }, 
         { id: 5, name: '15 push-ups' }, 
         { id: 6, name: '500m rowing' }
       ]},
       4: { type: 'sets', cardio: { name: '15 min run', duration: 15 }, exercises: [
-        { id: 1, name: 'Leg Curls', sets: 4 }, 
-        { id: 2, name: 'Overhead Press', sets: 4 }, 
-        { id: 3, name: 'Lat Pulldowns', sets: 4 }, 
-        { id: 4, name: 'Incline Dumbbell Press', sets: 3 }, 
-        { id: 5, name: 'Cable Triceps Pushdowns', sets: 3 },
-        { id: 6, name: 'Dumbbell Curls', sets: 3 }
+        { id: 1, name: 'Leg curls', sets: 4 },
+        { id: 2, name: 'Overhead press', sets: 4 },
+        { id: 3, name: 'Lat pulldown', sets: 4 },
+        { id: 4, name: 'Incline dumbbell press', sets: 3 },
+        { id: 5, name: 'Cable triceps pushdowns', sets: 3 },
+        { id: 6, name: 'Dumbbell curls', sets: 3 }
       ]},
       5: { type: 'other', exercises: [] }
     };
@@ -129,24 +129,24 @@
         });
       };
 
-      if (!isLibLoaded) return <div className="h-screen flex items-center justify-center font-bold bg-slate-900 uppercase">INITIALIZING...</div>;
-      if (!isLoggedIn) return <div className="h-screen flex items-center justify-center bg-slate-900"><button onClick={() => tokenClient.requestAccessToken()} className="bg-green-600 px-10 py-4 rounded-2xl font-bold uppercase tracking-widest shadow-xl">Login</button></div>;
+      if (!isLibLoaded) return <div className="h-screen flex items-center justify-center font-bold bg-slate-900 uppercase tracking-widest">Initialising...</div>;
+      if (!isLoggedIn) return <div className="h-screen flex items-center justify-center bg-slate-900"><button onClick={() => tokenClient.requestAccessToken()} className="bg-green-600 px-10 py-4 rounded-2xl font-bold uppercase tracking-widest shadow-xl active:scale-95 transition-all">Login with Google</button></div>;
 
       if (showHistory) return <HistoryView onBack={() => setShowHistory(false)} />;
       if (selectedDay !== null) return <WorkoutScreen day={selectedDay} onBack={() => setSelectedDay(null)} onSync={syncToCloud} />;
 
       return (
         <div className="min-h-screen p-4 max-w-2xl mx-auto bg-slate-900">
-          <h1 className="text-4xl font-black text-center mb-10 tracking-tight uppercase">Workouts</h1>
+          <h1 className="text-4xl font-black text-center mb-10 tracking-tight uppercase italic text-green-500">Workouts</h1>
           <div className="grid gap-4 mb-6">
             {[1, 2, 3, 4, 5].map(day => (
-              <button key={day} onClick={() => setSelectedDay(day)} className="bg-slate-800 p-6 rounded-2xl border border-slate-700 text-left flex items-center gap-4 transition-all active:scale-95 group">
-                <div className="w-12 h-12 bg-green-600 rounded-full flex items-center justify-center group-hover:rotate-6 transition-transform shadow-lg"><Dumbbell className="w-6 h-6" /></div>
+              <button key={day} onClick={() => setSelectedDay(day)} className="bg-slate-800 p-6 rounded-2xl border border-slate-700 text-left flex items-center gap-4 transition-all active:scale-95 group shadow-lg">
+                <div className="w-12 h-12 bg-green-600 rounded-xl flex items-center justify-center group-hover:rotate-6 transition-transform shadow-green-900/20 shadow-md"><Dumbbell className="w-6 h-6" /></div>
                 <h2 className="text-xl font-bold uppercase tracking-tight">{day === 5 ? 'Other' : `Day ${day}`}</h2>
               </button>
             ))}
           </div>
-          <button onClick={() => setShowHistory(true)} className="w-full bg-slate-800 py-5 rounded-xl border border-slate-700 font-bold hover:bg-slate-700 transition-colors uppercase tracking-widest text-xs">View All History</button>
+          <button onClick={() => setShowHistory(true)} className="w-full bg-slate-800 py-5 rounded-xl border border-slate-700 font-bold hover:bg-slate-700 transition-colors uppercase tracking-widest text-xs">History</button>
         </div>
       );
     }
@@ -197,7 +197,7 @@
           <div className="space-y-5">
             {isSets && (
               <div className="bg-slate-800 p-6 rounded-3xl border border-slate-700 shadow-lg">
-                <h2 className="text-xl font-black mb-4 text-green-500 flex items-center gap-2 uppercase tracking-tight">🏃 15 MIN RUN</h2>
+                <h2 className="text-xl font-black mb-4 text-green-500 flex items-center gap-2 uppercase tracking-tight italic">🏃 15 MIN RUN</h2>
                 <div className="flex items-center gap-4 bg-slate-900 p-2 rounded-2xl border border-slate-700">
                    <input type="number" step="0.1" placeholder="DISTANCE" className="flex-1 bg-transparent p-3 text-2xl font-black text-center focus:ring-2 focus:ring-green-500 outline-none uppercase" value={runDistance} onChange={(e) => setRunDistance(e.target.value)} />
                    <span className="pr-6 font-black text-slate-600 text-xs">KM</span>
@@ -209,7 +209,7 @@
               <textarea value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full bg-slate-800 rounded-3xl p-8 h-[400px] border border-slate-700 text-white text-lg focus:outline-none focus:ring-2 focus:ring-green-500 shadow-inner" placeholder="Detailed workout notes..." />
             ) : exercises.map((ex, i) => (
               <div key={ex.id} className="bg-slate-800 p-8 rounded-3xl border border-slate-700 shadow-lg">
-                <h3 className="font-black text-xl mb-6 text-white uppercase tracking-tight leading-none">{ex.name}</h3>
+                <h3 className="font-black text-xl mb-6 text-white uppercase tracking-tight leading-none italic">{ex.name}</h3>
                 {isRounds ? (
                   <div className="space-y-6">
                     <div className="flex gap-2 h-3">{[...Array(config.rounds)].map((_, idx) => (<div key={idx} className={`flex-1 rounded-full transition-all duration-500 ${idx < ex.rounds ? 'bg-green-500 shadow-[0_0_15px_rgba(34,197,94,0.4)]' : 'bg-slate-700'}`} />))}</div>
@@ -237,7 +237,7 @@
               </div>
             ))}
           </div>
-          <button onClick={completeWorkout} disabled={!allCompleted} className={`w-full py-6 rounded-[2rem] font-black text-2xl mt-12 shadow-2xl transition-all active:scale-95 uppercase tracking-tighter ${allCompleted ? 'bg-green-600 hover:bg-green-500 shadow-green-900/40' : 'bg-slate-800 text-slate-600 cursor-not-allowed border border-slate-700'}`}>Complete & Sync ☁️</button>
+          <button onClick={completeWorkout} disabled={!allCompleted} className={`w-full py-6 rounded-[2rem] font-black text-2xl mt-12 shadow-2xl transition-all active:scale-95 uppercase tracking-tighter shadow-green-900/40 ${allCompleted ? 'bg-green-600 hover:bg-green-500' : 'bg-slate-800 text-slate-600 cursor-not-allowed border border-slate-700'}`}>Complete & Sync ☁️</button>
         </div>
       );
     }
@@ -260,7 +260,7 @@
       return (
         <div className="min-h-screen p-4 max-w-2xl mx-auto bg-slate-900">
           <button onClick={onBack} className="mb-8 flex items-center gap-2 text-slate-500 font-black uppercase text-[10px] tracking-widest"><ArrowLeft className="w-4 h-4" /> Back</button>
-          <h1 className="text-3xl font-black mb-8 text-center tracking-tight uppercase">History</h1>
+          <h1 className="text-3xl font-black mb-8 text-center tracking-tight uppercase italic text-green-500">History</h1>
           <div className="space-y-4">
             {history.map((w, idx) => (
               <div key={idx} className="bg-slate-800 p-6 rounded-[2rem] border border-slate-700 shadow-lg">
