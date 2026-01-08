@@ -30,10 +30,36 @@
     };
 
     const workoutData = {
-      1: { type: 'rounds', rounds: 3, exercises: [{ id: 1, name: '20m dumbbell lunges', trackWeight: true }, { id: 2, name: '20m sled push', trackWeight: true }, { id: 3, name: '500m rowing' }, { id: 4, name: '15 goblet squats', trackWeight: true }, { id: 5, name: '15 box jumps' }]},
-      2: { type: 'sets', warmUp: { name: '1km Run' }, exercises: [{ id: 1, name: 'Leg press', sets: 4 }, { id: 2, name: 'Bench press', sets: 4 }, { id: 3, name: 'Cable row', sets: 4 }, { id: 4, name: 'Bulgarian split squats', sets: 3 }, { id: 5, name: 'Face pulls', sets: 3 }], finisher: { name: '15 min run' }},
-      3: { type: 'rounds', rounds: 3, exercises: [{ id: 1, name: '10 pull-ups' }, { id: 2, name: '10 dips' }, { id: 3, name: '10 barbell thrusters', trackWeight: true }, { id: 4, name: '10m sled pull', trackWeight: true }, { id: 5, name: '15 push-ups' }, { id: 6, name: '500m rowing' }]},
-      4: { type: 'sets', warmUp: { name: '1km Run' }, exercises: [{ id: 1, name: 'Leg curls', sets: 4 }, { id: 2, name: 'Overhead press', sets: 4 }, { id: 3, name: 'Lat pulldown', sets: 4 }, { id: 4, name: 'Incline dumbbell press', sets: 3 }, { id: 5, name: 'Cable triceps pushdowns', sets: 3 }, { id: 6, name: 'Dumbbell curls', sets: 3 }], finisher: { name: '15 min run' }},
+      1: { type: 'rounds', rounds: 3, warmUp: { name: '1km Run' }, exercises: [
+        { id: 1, name: '20m dumbbell lunges', trackWeight: true }, 
+        { id: 2, name: '20m sled push', trackWeight: true }, 
+        { id: 3, name: '500m rowing' }, 
+        { id: 4, name: '15 goblet squats', trackWeight: true }, 
+        { id: 5, name: '15 box jumps' }
+      ]},
+      2: { type: 'sets', warmUp: { name: '1km Run' }, exercises: [
+        { id: 1, name: 'Leg press', sets: 4 }, 
+        { id: 2, name: 'Bench press', sets: 4 }, 
+        { id: 3, name: 'Cable row', sets: 4 }, 
+        { id: 4, name: 'Bulgarian split squats', sets: 3 }, 
+        { id: 5, name: 'Face pulls', sets: 3 }
+      ], finisher: { name: '15 min run' }},
+      3: { type: 'rounds', rounds: 3, warmUp: { name: '1km Run' }, exercises: [
+        { id: 1, name: '10 pull-ups' }, 
+        { id: 2, name: '10 dips' }, 
+        { id: 3, name: '10 barbell thrusters', trackWeight: true }, 
+        { id: 4, name: '10m sled pull', trackWeight: true }, 
+        { id: 5, name: '15 push-ups' }, 
+        { id: 6, name: '500m rowing' }
+      ]},
+      4: { type: 'sets', warmUp: { name: '1km Run' }, exercises: [
+        { id: 1, name: 'Leg curls', sets: 4 }, 
+        { id: 2, name: 'Overhead press', sets: 4 }, 
+        { id: 3, name: 'Lat pulldown', sets: 4 }, 
+        { id: 4, name: 'Incline dumbbell press', sets: 3 }, 
+        { id: 5, name: 'Cable triceps pushdowns', sets: 3 }, 
+        { id: 6, name: 'Dumbbell curls', sets: 3 }
+      ], finisher: { name: '15 min run' }},
       5: { type: 'other', exercises: [] }
     };
 
@@ -75,7 +101,7 @@
       }, []);
 
       const loadCloudData = async (token) => {
-        setSyncStatus("Cloud: Pulling...");
+        setSyncStatus("Connecting to Cloud...");
         try {
           const res = await fetch('https://www.googleapis.com/drive/v3/files?q=name="workouts.json"', {
             headers: { Authorization: `Bearer ${token}` }
@@ -88,15 +114,17 @@
             const cloudContent = await fileRes.json();
             storage.data = { ...storage.data, ...cloudContent };
             storage.saveLocal();
-            setSyncStatus("Cloud: Synced ✅");
-          } else { setSyncStatus("Cloud: Ready"); }
-        } catch (e) { setSyncStatus("Cloud: Link Error"); }
+            setSyncStatus("Cloud Synced ✅");
+          } else {
+            setSyncStatus("Cloud Ready");
+          }
+        } catch (e) { setSyncStatus("Connection Failed"); }
         setTimeout(() => setSyncStatus(""), 3000);
       };
 
       const syncToCloud = async () => {
         const token = localStorage.getItem('gdrive_token');
-        setSyncStatus("Cloud: Saving...");
+        setSyncStatus("Pushing to Drive...");
         try {
           const listRes = await fetch('https://www.googleapis.com/drive/v3/files?q=name="workouts.json"', {
             headers: { Authorization: `Bearer ${token}` }
@@ -113,21 +141,22 @@
             method: fileId ? 'PATCH' : 'POST', headers: { Authorization: `Bearer ${token}` }, body: form
           });
           
-          if (syncRes.ok) setSyncStatus("Cloud: Saved ✅");
-        } catch (e) { setSyncStatus("Cloud: Error"); }
+          if (syncRes.ok) setSyncStatus("Cloud Updated ✅");
+          else setSyncStatus("Save Error ❌");
+        } catch (e) { setSyncStatus("Sync Failed"); }
         setTimeout(() => setSyncStatus(""), 3000);
       };
 
       const deleteAllHistory = async () => {
-        const pass = prompt("Enter Password to wipe ALL history:");
+        const pass = prompt("Enter Password (1234) to wipe ALL history:");
         if (pass === "1234") {
             storage.data = {};
             storage.saveLocal();
             await syncToCloud();
-            alert("All history cleared from local and cloud.");
+            alert("All history cleared.");
             setShowHistory(false);
         } else {
-            alert("Wrong password.");
+            alert("Incorrect password.");
         }
       };
 
@@ -147,7 +176,12 @@
           {showHistory ? (
             <HistoryView onBack={() => setShowHistory(false)} onDeleteAll={deleteAllHistory} />
           ) : selectedDay !== null ? (
-            <WorkoutScreen day={selectedDay} onBack={() => setSelectedDay(null)} onSync={syncToCloud} storage={storage} />
+            <WorkoutScreen 
+                day={selectedDay} 
+                onBack={() => setSelectedDay(null)} 
+                onSync={syncToCloud} 
+                storage={storage} 
+            />
           ) : (
             <>
               <div className="grid gap-4 mb-6">
@@ -160,7 +194,7 @@
               </div>
               <button onClick={() => setShowHistory(true)} className="w-full bg-slate-800 py-5 rounded-xl border border-slate-700 font-bold uppercase tracking-widest text-xs mb-8 shadow-lg">History</button>
               <div className="flex justify-between px-2">
-                <button onClick={() => loadCloudData(localStorage.getItem('gdrive_token'))} className="text-green-600 text-[10px] font-black uppercase tracking-widest">Refresh Cloud ☁️</button>
+                <button onClick={() => loadCloudData(localStorage.getItem('gdrive_token'))} className="text-green-600 text-[10px] font-black uppercase tracking-widest">Manual Cloud Pull ☁️</button>
                 <button onClick={() => { localStorage.clear(); window.location.reload(); }} className="text-slate-600 text-[10px] font-black uppercase tracking-widest">Log Out</button>
               </div>
             </>
@@ -209,8 +243,10 @@
         return () => clearInterval(interval);
       }, [isRunning]);
 
+      const formatTime = (s) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
+      
       const completeWorkout = async (isInitialSeed = false) => {
-        const newWorkout = { date: new Date().toISOString(), time: isInitialSeed ? 0 : timer, exercises, notes, day: dayLabel, warmUp: config.type === 'sets' ? warmUpData : null, finisher: config.type === 'sets' ? finisherData : null, isSeed: isInitialSeed };
+        const newWorkout = { date: new Date().toISOString(), time: isInitialSeed ? 0 : timer, exercises, notes, day: dayLabel, warmUp: warmUpData, finisher: config.type === 'sets' ? finisherData : null, isSeed: isInitialSeed };
         storage.data[`workout:${Date.now()}`] = JSON.stringify(newWorkout);
         storage.saveLocal();
         localStorage.removeItem(workoutId); 
@@ -223,15 +259,15 @@
           <button onClick={onBack} className="mb-6 flex items-center gap-2 text-slate-500 font-black uppercase text-[10px] tracking-widest">Back</button>
           <div className="bg-slate-800 rounded-[2.5rem] p-10 mb-8 text-center border border-slate-700 shadow-2xl">
             <div className="text-7xl font-mono font-black mb-8 tracking-tighter text-white leading-none">
-              {Math.floor(timer/60)}:{(timer%60).toString().padStart(2,'0')}
+              {formatTime(timer)}
             </div>
             <button onClick={() => setIsRunning(!isRunning)} className={`px-12 py-4 rounded-2xl font-black uppercase tracking-widest shadow-xl ${isRunning ? 'bg-red-500' : 'bg-green-600'}`}>{isRunning ? 'Pause' : 'Start'}</button>
           </div>
 
           <div className="space-y-5">
-            {config.type === 'sets' && config.warmUp && (
-              <div className="bg-slate-800 p-6 rounded-3xl border border-slate-700 border-l-4 border-l-green-500">
-                <h2 className="text-xl font-black text-green-500 uppercase tracking-tight mb-4 italic text-center">🏃 1KM RUN</h2>
+            {config.warmUp && (
+              <div className="bg-slate-800 p-6 rounded-3xl border border-slate-700 border-l-4 border-l-green-500 shadow-lg">
+                <h2 className="text-xl font-black text-green-500 uppercase tracking-tight italic mb-4 text-center">🏃 1KM RUN</h2>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="bg-slate-900 p-2 rounded-2xl border border-slate-700 relative">
                     <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[8px] font-black text-slate-600 uppercase">SPEED</span>
@@ -249,7 +285,7 @@
               const lastEx = lastWorkout?.exercises?.find(le => le.id === ex.id);
               return (
                 <div key={ex.id} className="bg-slate-800 p-8 rounded-3xl border border-slate-700 shadow-lg relative">
-                  <h3 className="font-black text-xl text-white uppercase tracking-tight mb-6">{ex.name}</h3>
+                  <h3 className="font-black text-xl text-white uppercase tracking-tight leading-none mb-6">{ex.name}</h3>
                   {config.type === 'rounds' ? (
                     <div className="space-y-4">
                       <button onClick={() => {const u = [...exercises]; u[i].rounds = u[i].rounds < config.rounds ? u[i].rounds + 1 : 0; setExercises(u);}} className={`w-full py-5 rounded-2xl font-black uppercase tracking-widest ${ex.rounds === config.rounds ? 'bg-green-900/40 text-green-400 border-2 border-green-500/50' : 'bg-slate-700 text-white'}`}>Round {ex.rounds}/{config.rounds}</button>
@@ -263,9 +299,11 @@
                   ) : (
                     <div className="space-y-4">
                       {ex.completedSets?.map((set, sIdx) => {
+                        const isDone = set.weight !== '' && set.reps !== '';
                         const lastS = lastEx?.completedSets?.[sIdx];
                         return (
-                          <div key={sIdx} className="flex items-center gap-3 p-3 rounded-2xl border border-slate-700 bg-slate-900/50">
+                          <div key={sIdx} className={`flex items-center gap-3 p-3 rounded-2xl border transition-all duration-300 ${isDone ? 'bg-green-900/10 border-green-500/50' : 'bg-slate-900/50 border-slate-700'}`}>
+                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-[10px] ${isDone ? 'text-green-500' : 'text-slate-700'}`}>S{sIdx+1}</div>
                             <div className="flex-1 relative">
                                 <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[8px] font-black text-slate-600 uppercase">KG</span>
                                 <input type="number" placeholder={lastS?.weight || "0"} className="w-full bg-transparent pl-8 pr-2 py-3 text-xl font-bold text-white text-center outline-none" value={set.weight} onChange={(e) => {const u = [...exercises]; u[i].completedSets[sIdx].weight = e.target.value; setExercises(u);}} />
@@ -285,8 +323,8 @@
             })}
           </div>
           <div className="mt-12 space-y-4">
-              <button onClick={() => completeWorkout(false)} className="w-full py-6 rounded-[2rem] font-black text-2xl shadow-2xl bg-green-600 hover:bg-green-500 uppercase tracking-tighter shadow-green-900/40">Complete Workout ☁️</button>
-              <button onClick={() => completeWorkout(true)} className="w-full py-4 rounded-2xl font-black text-xs border-2 border-slate-700 text-slate-500 uppercase tracking-widest">Set Goals</button>
+              <button onClick={() => completeWorkout(false)} className="w-full py-6 rounded-[2rem] font-black text-2xl shadow-2xl bg-green-600 hover:bg-green-500 uppercase tracking-tighter shadow-green-900/40 active:scale-95 transition-all">Sync Workout ☁️</button>
+              <button onClick={() => completeWorkout(true)} className="w-full py-4 rounded-2xl font-black text-xs border-2 border-slate-700 text-slate-500 uppercase tracking-widest active:scale-95 transition-all">Set Goals</button>
           </div>
         </div>
       );
@@ -303,10 +341,13 @@
             <button onClick={onDeleteAll} className="text-red-500 font-black uppercase text-[10px] tracking-widest px-4 py-2 border border-red-500/20 rounded-lg">Wipe History</button>
           </div>
           <div className="space-y-4 pb-20">
-            {history.length === 0 ? <p className="text-center py-10 text-slate-600 font-black uppercase tracking-widest text-xs">No entries found</p> : history.map((w, idx) => (
+            {history.length === 0 ? <p className="text-center py-10 text-slate-600 font-black uppercase tracking-widest text-xs">No history found</p> : history.map((w, idx) => (
               <div key={idx} className="bg-slate-800 p-6 rounded-[2rem] border border-slate-700 shadow-lg">
                 <div className="flex justify-between items-start">
-                  <div><h3 className="text-xl font-black text-green-500 uppercase leading-none">{w.day} {w.isSeed && <span className="text-[8px] text-slate-600">(GOALS)</span>}</h3><p className="text-[10px] text-slate-500 mt-1 uppercase font-bold">{new Date(w.date).toLocaleDateString()}</p></div>
+                  <div>
+                    <h3 className="text-xl font-black text-green-500 uppercase">{w.day} {w.isSeed && "(GOALS)"}</h3>
+                    <p className="text-[10px] text-slate-500 mt-1 uppercase font-bold">{new Date(w.date).toLocaleDateString()}</p>
+                  </div>
                   <div className="text-3xl font-mono font-black">{Math.floor(w.time/60)}:{(w.time%60).toString().padStart(2,'0')}</div>
                 </div>
               </div>
@@ -315,7 +356,9 @@
         </div>
       );
     }
-    const root = ReactDOM.createRoot(document.getElementById('root')); root.render(<App />);
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
   </script>
 </body>
 </html>
