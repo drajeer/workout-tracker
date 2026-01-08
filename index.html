@@ -15,6 +15,7 @@
     body { overscroll-behavior-y: contain; background-color: #0f172a; }
     .no-scrollbar::-webkit-scrollbar { display: none; }
     input::placeholder { color: rgba(100, 116, 139, 0.6); font-weight: 800; }
+    .sync-overlay { background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(4px); }
   </style>
 </head>
 <body class="bg-slate-900 text-white font-sans selection:bg-green-500/30">
@@ -25,9 +26,10 @@
     const CLIENT_ID = '993686805304-ejcjgvg9or29fi8e7gsek1kqljob2hok.apps.googleusercontent.com';
     const SCOPES = 'https://www.googleapis.com/auth/drive.file';
 
+    // Global storage object with Cloud Logic
     const storage = {
       data: JSON.parse(localStorage.getItem('workoutData') || '{}'),
-      async get(key) { const v = this.data[key]; return v ? { key, value: v } : null; },
+      async get(key) { return this.data[key] ? { key, value: this.data[key] } : null; },
       async set(key, value) { 
         this.data[key] = value; 
         localStorage.setItem('workoutData', JSON.stringify(this.data)); 
@@ -35,7 +37,6 @@
       },
       async list(prefix) { return { keys: Object.keys(this.data).filter(k => k.startsWith(prefix)) }; }
     };
-    if (!window.storage) window.storage = storage;
 
     const workoutData = {
       1: { type: 'rounds', rounds: 3, exercises: [
@@ -75,7 +76,6 @@
     const ArrowLeft = ({ className }) => (<svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>);
     const Dumbbell = ({ className }) => (<svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.5 10.5L12 3m0 0l7.5 7.5M12 3v18" /></svg>);
 
-    // Helper for formatting MM:SS
     const formatTimeInput = (val) => {
       const clean = val.replace(/\D/g, '');
       if (clean.length <= 2) return clean;
@@ -91,6 +91,7 @@
       const [tokenClient, setTokenClient] = useState(null);
       const [selectedDay, setSelectedDay] = useState(null);
       const [showHistory, setShowHistory] = useState(false);
+      const [isSyncing, setIsSyncing] = useState(false);
 
       useEffect(() => {
         const timer = setInterval(() => {
@@ -99,73 +100,115 @@
         return () => clearInterval(timer);
       }, []);
 
-      const handleSignOut = () => { localStorage.removeItem('gdrive_token'); setIsLoggedIn(false); };
-
       function initGoogle() {
         const client = google.accounts.oauth2.initTokenClient({
           client_id: CLIENT_ID, scope: SCOPES,
-          callback: async (resp) => { if (resp.access_token) { localStorage.setItem('gdrive_token', resp.access_token); setIsLoggedIn(true); await loadCloudData(resp.access_token); } }
+          callback: async (resp) => { 
+            if (resp.access_token) { 
+              localStorage.setItem('gdrive_token', resp.access_token);
+              setIsLoggedIn(true); 
+              await loadCloudData(resp.access_token); 
+            } 
+          }
         });
         setTokenClient(client);
+        
         gapi.load('client', async () => {
           await gapi.client.init({});
           const savedToken = localStorage.getItem('gdrive_token');
-          if (savedToken) { gapi.client.setToken({ access_token: savedToken }); setIsLoggedIn(true); await loadCloudData(savedToken); }
+          if (savedToken) {
+            gapi.client.setToken({ access_token: savedToken });
+            setIsLoggedIn(true);
+            await loadCloudData(savedToken);
+          }
           setIsLibLoaded(true);
         });
       }
 
       const loadCloudData = async (token) => {
+        setIsSyncing(true);
         try {
-          const res = await fetch('https://www.googleapis.com/drive/v3/files?q=name="workouts.json"', { headers: { Authorization: `Bearer ${token}` } });
-          if (res.status === 401) { handleSignOut(); return; }
+          const res = await fetch('https://www.googleapis.com/drive/v3/files?q=name="workouts.json"&fields=files(id,name)', {
+            headers: { Authorization: `Bearer ${token}` }
+          });
           const data = await res.json();
-          if (data.files?.length > 0) {
-            const fileRes = await fetch(`https://www.googleapis.com/drive/v3/files/${data.files[0].id}?alt=media`, { headers: { Authorization: `Bearer ${token}` } });
-            window.storage.data = await fileRes.json();
-            localStorage.setItem('workoutData', JSON.stringify(window.storage.data));
+          if (data.files && data.files.length > 0) {
+            const fileRes = await fetch(`https://www.googleapis.com/drive/v3/files/${data.files[0].id}?alt=media`, {
+              headers: { Authorization: `Bearer ${token}` }
+            });
+            const cloudData = await fileRes.json();
+            storage.data = cloudData;
+            localStorage.setItem('workoutData', JSON.stringify(cloudData));
           }
-        } catch (e) { console.error(e); }
+        } catch (e) { console.error("Cloud Load Error:", e); }
+        setIsSyncing(false);
       };
 
       const syncToCloud = async () => {
+        setIsSyncing(true);
         const token = localStorage.getItem('gdrive_token');
-        const listRes = await fetch('https://www.googleapis.com/drive/v3/files?q=name="workouts.json"', { headers: { Authorization: `Bearer ${token}` } });
-        const listData = await listRes.json();
-        const fileId = listData.files?.[0]?.id;
-        const metadata = { name: 'workouts.json', mimeType: 'application/json' };
-        const form = new FormData();
-        form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
-        form.append('file', new Blob([JSON.stringify(window.storage.data)], { type: 'application/json' }));
-        await fetch(fileId ? `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart` : 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
-          method: fileId ? 'PATCH' : 'POST', headers: { Authorization: `Bearer ${token}` }, body: form
-        });
+        try {
+          const listRes = await fetch('https://www.googleapis.com/drive/v3/files?q=name="workouts.json"', {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          const listData = await listRes.json();
+          const fileId = listData.files?.[0]?.id;
+          
+          const metadata = { name: 'workouts.json', mimeType: 'application/json' };
+          const form = new FormData();
+          form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+          form.append('file', new Blob([JSON.stringify(storage.data)], { type: 'application/json' }));
+
+          await fetch(fileId ? `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart` : 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+            method: fileId ? 'PATCH' : 'POST', headers: { Authorization: `Bearer ${token}` }, body: form
+          });
+        } catch (e) { console.error("Cloud Sync Error:", e); }
+        setIsSyncing(false);
       };
 
-      if (!isLibLoaded) return <div className="h-screen flex items-center justify-center font-bold bg-slate-900 uppercase italic">Syncing...</div>;
+      const handleSignOut = () => {
+        localStorage.removeItem('gdrive_token');
+        setIsLoggedIn(false);
+        window.location.reload();
+      };
+
+      if (!isLibLoaded) return <div className="h-screen flex items-center justify-center font-bold bg-slate-900 uppercase italic text-green-500 animate-pulse">Initializing...</div>;
+
       if (!isLoggedIn) return (
         <div className="h-screen flex items-center justify-center bg-slate-900 p-6 text-center">
-            <div><h1 className="text-3xl font-black mb-8 italic text-green-500 uppercase leading-none">Workout Tracker</h1>
-            <button onClick={() => tokenClient.requestAccessToken()} className="bg-green-600 px-10 py-4 rounded-2xl font-bold uppercase tracking-widest shadow-xl w-full">Login</button></div>
+            <div>
+              <h1 className="text-4xl font-black mb-12 italic text-green-500 uppercase tracking-tighter">Workout<br/>Cloud</h1>
+              <button onClick={() => tokenClient.requestAccessToken()} className="bg-green-600 px-12 py-5 rounded-3xl font-black uppercase tracking-widest shadow-2xl hover:bg-green-500 transition-all active:scale-95">Login with Google</button>
+            </div>
         </div>
       );
 
-      if (showHistory) return <HistoryView onBack={() => setShowHistory(false)} />;
-      if (selectedDay !== null) return <WorkoutScreen day={selectedDay} onBack={() => setSelectedDay(null)} onSync={syncToCloud} />;
-
       return (
-        <div className="min-h-screen p-4 max-w-2xl mx-auto bg-slate-900">
-          <h1 className="text-4xl font-black text-center mb-10 tracking-tight uppercase italic text-green-500">Workouts</h1>
-          <div className="grid gap-4 mb-6">
-            {[1, 2, 3, 4, 5].map(day => (
-              <button key={day} onClick={() => setSelectedDay(day)} className="bg-slate-800 p-6 rounded-2xl border border-slate-700 text-left flex items-center gap-4 transition-all active:scale-95 group shadow-lg">
-                <div className="w-12 h-12 bg-green-600 rounded-xl flex items-center justify-center group-hover:rotate-6 transition-transform shadow-green-900/20 shadow-md"><Dumbbell className="w-6 h-6" /></div>
-                <h2 className="text-xl font-bold uppercase tracking-tight">{day === 5 ? 'Other' : `Day ${day}`}</h2>
-              </button>
-            ))}
-          </div>
-          <button onClick={() => setShowHistory(true)} className="w-full bg-slate-800 py-5 rounded-xl border border-slate-700 font-bold hover:bg-slate-700 transition-colors uppercase tracking-widest text-xs mb-4">History</button>
-          <button onClick={handleSignOut} className="w-full text-slate-600 text-[10px] font-black uppercase tracking-widest">Switch Account</button>
+        <div className="min-h-screen p-4 max-w-2xl mx-auto bg-slate-900 relative">
+          {isSyncing && <div className="fixed inset-0 z-50 sync-overlay flex items-center justify-center font-black uppercase tracking-widest text-green-500">☁️ Syncing Cloud...</div>}
+          
+          {showHistory ? (
+            <HistoryView onBack={() => setShowHistory(false)} />
+          ) : selectedDay !== null ? (
+            <WorkoutScreen day={selectedDay} onBack={() => setSelectedDay(null)} onSync={syncToCloud} />
+          ) : (
+            <>
+              <h1 className="text-4xl font-black text-center mb-10 tracking-tight uppercase italic text-green-500">Workouts</h1>
+              <div className="grid gap-4 mb-6">
+                {[1, 2, 3, 4, 5].map(day => (
+                  <button key={day} onClick={() => setSelectedDay(day)} className="bg-slate-800 p-6 rounded-2xl border border-slate-700 text-left flex items-center gap-4 transition-all active:scale-95 group shadow-lg">
+                    <div className="w-12 h-12 bg-green-600 rounded-xl flex items-center justify-center group-hover:rotate-6 transition-transform shadow-green-900/20 shadow-md"><Dumbbell className="w-6 h-6" /></div>
+                    <h2 className="text-xl font-bold uppercase tracking-tight">{day === 5 ? 'Other' : `Day ${day}`}</h2>
+                  </button>
+                ))}
+              </div>
+              <button onClick={() => setShowHistory(true)} className="w-full bg-slate-800 py-5 rounded-xl border border-slate-700 font-bold hover:bg-slate-700 transition-colors uppercase tracking-widest text-xs mb-4">History</button>
+              <div className="flex justify-between px-2">
+                <button onClick={() => loadCloudData(localStorage.getItem('gdrive_token'))} className="text-green-600 text-[10px] font-black uppercase tracking-widest">Force Refresh ☁️</button>
+                <button onClick={handleSignOut} className="text-slate-600 text-[10px] font-black uppercase tracking-widest">Logout</button>
+              </div>
+            </>
+          )}
         </div>
       );
     }
@@ -194,9 +237,9 @@
              if (config.type === 'rounds') setExercises(config.exercises.map(ex => ({ ...ex, rounds: 0, weight: ex.trackWeight ? '' : undefined })));
              if (config.type === 'sets') setExercises(config.exercises.map(ex => ({ ...ex, completedSets: Array(ex.sets).fill(null).map(() => ({ weight: '', reps: '', completed: false })) })));
           }
-          const res = await window.storage.list('workout:');
+          const res = await storage.list('workout:');
           if (res?.keys) {
-            const items = await Promise.all(res.keys.map(async k => JSON.parse((await window.storage.get(k)).value)));
+            const items = await Promise.all(res.keys.map(async k => JSON.parse((await storage.get(k)).value)));
             const match = items.sort((a,b) => new Date(b.date) - new Date(a.date)).find(w => w.day === dayLabel);
             if (match) setLastWorkout(match);
           }
@@ -211,12 +254,12 @@
       
       const completeWorkout = async (isInitialSeed = false) => {
         const w = { date: new Date().toISOString(), time: isInitialSeed ? 0 : timer, exercises, notes, day: dayLabel, warmUp: config.type === 'sets' ? warmUpData : null, finisher: config.type === 'sets' ? finisherData : null, isSeed: isInitialSeed };
-        await window.storage.set(`workout:${Date.now()}`, JSON.stringify(w));
+        await storage.set(`workout:${Date.now()}`, JSON.stringify(w));
         localStorage.removeItem(workoutId); await onSync(); onBack();
       };
 
       return (
-        <div className="min-h-screen p-4 max-w-2xl mx-auto pb-24 bg-slate-900">
+        <div className="pb-20">
           <button onClick={onBack} className="mb-6 flex items-center gap-2 text-slate-500 font-black uppercase text-[10px] tracking-widest"><ArrowLeft className="w-4 h-4" /> Back</button>
           <div className="bg-slate-800 rounded-[2.5rem] p-10 mb-8 text-center border border-slate-700 shadow-2xl relative">
             <div className="text-7xl font-mono font-black mb-8 tracking-tighter tabular-nums text-white leading-none">{formatTime(timer)}</div>
@@ -258,7 +301,7 @@
                         <div className="flex items-center gap-3 bg-slate-900 p-3 rounded-xl border border-slate-700 relative">
                           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-500 uppercase">WEIGHT</span>
                           <input type="number" placeholder={lastEx?.weight || "0"} className="w-full bg-transparent text-xl font-bold text-center outline-none" value={ex.weight} onChange={(e) => {const u = [...exercises]; u[i].weight = e.target.value; setExercises(u);}} />
-                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-500 uppercase">KG</span>
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-500 uppercase tracking-widest">KG</span>
                         </div>
                       )}
                     </div>
@@ -317,9 +360,9 @@
       const [history, setHistory] = useState([]);
       useEffect(() => {
         const load = async () => {
-          const res = await window.storage.list('workout:');
+          const res = await storage.list('workout:');
           if (res?.keys) {
-            const items = await Promise.all(res.keys.map(async k => JSON.parse((await window.storage.get(k)).value)));
+            const items = await Promise.all(res.keys.map(async k => JSON.parse((await storage.get(k)).value)));
             setHistory(items.sort((a,b) => new Date(b.date) - new Date(a.date)));
           }
         };
@@ -327,7 +370,7 @@
       }, []);
       const formatTime = (s) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
       return (
-        <div className="min-h-screen p-4 max-w-2xl mx-auto bg-slate-900">
+        <div className="min-h-screen">
           <button onClick={onBack} className="mb-8 flex items-center gap-2 text-slate-500 font-black uppercase text-[10px] tracking-widest"><ArrowLeft className="w-4 h-4" /> Back</button>
           <h1 className="text-3xl font-black mb-8 text-center tracking-tight uppercase italic text-green-500">History</h1>
           <div className="space-y-4">
