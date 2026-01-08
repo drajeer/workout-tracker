@@ -13,7 +13,6 @@
   <style>
     html { -webkit-text-size-adjust: 100%; }
     body { overscroll-behavior-y: contain; background-color: #0f172a; }
-    .no-scrollbar::-webkit-scrollbar { display: none; }
     input::placeholder { color: rgba(100, 116, 139, 0.6); font-weight: 800; }
   </style>
 </head>
@@ -25,7 +24,6 @@
     const CLIENT_ID = '993686805304-ejcjgvg9or29fi8e7gsek1kqljob2hok.apps.googleusercontent.com';
     const SCOPES = 'https://www.googleapis.com/auth/drive.file';
 
-    // Global persistent storage object
     const storage = {
       data: JSON.parse(localStorage.getItem('workoutData') || '{}'),
       saveLocal() { localStorage.setItem('workoutData', JSON.stringify(this.data)); }
@@ -77,7 +75,7 @@
       }, []);
 
       const loadCloudData = async (token) => {
-        setSyncStatus("Connecting to Cloud...");
+        setSyncStatus("Cloud: Pulling...");
         try {
           const res = await fetch('https://www.googleapis.com/drive/v3/files?q=name="workouts.json"', {
             headers: { Authorization: `Bearer ${token}` }
@@ -88,20 +86,17 @@
               headers: { Authorization: `Bearer ${token}` }
             });
             const cloudContent = await fileRes.json();
-            // MERGE LOGIC: Combine local and cloud to prevent overwriting new data
             storage.data = { ...storage.data, ...cloudContent };
             storage.saveLocal();
-            setSyncStatus("Cloud Synced ✅");
-          } else {
-            setSyncStatus("Cloud Empty - First Time?");
-          }
-        } catch (e) { setSyncStatus("Connection Failed"); }
+            setSyncStatus("Cloud: Synced ✅");
+          } else { setSyncStatus("Cloud: Ready"); }
+        } catch (e) { setSyncStatus("Cloud: Link Error"); }
         setTimeout(() => setSyncStatus(""), 3000);
       };
 
       const syncToCloud = async () => {
         const token = localStorage.getItem('gdrive_token');
-        setSyncStatus("Pushing to Drive...");
+        setSyncStatus("Cloud: Saving...");
         try {
           const listRes = await fetch('https://www.googleapis.com/drive/v3/files?q=name="workouts.json"', {
             headers: { Authorization: `Bearer ${token}` }
@@ -118,10 +113,22 @@
             method: fileId ? 'PATCH' : 'POST', headers: { Authorization: `Bearer ${token}` }, body: form
           });
           
-          if (syncRes.ok) setSyncStatus("Cloud Updated ✅");
-          else setSyncStatus("Save Error ❌");
-        } catch (e) { setSyncStatus("Sync Failed"); }
+          if (syncRes.ok) setSyncStatus("Cloud: Saved ✅");
+        } catch (e) { setSyncStatus("Cloud: Error"); }
         setTimeout(() => setSyncStatus(""), 3000);
+      };
+
+      const deleteAllHistory = async () => {
+        const pass = prompt("Enter Password to wipe ALL history:");
+        if (pass === "1234") {
+            storage.data = {};
+            storage.saveLocal();
+            await syncToCloud();
+            alert("All history cleared from local and cloud.");
+            setShowHistory(false);
+        } else {
+            alert("Wrong password.");
+        }
       };
 
       if (!isLoggedIn) return (
@@ -138,14 +145,9 @@
           <div className="h-6 text-center text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">{syncStatus}</div>
           
           {showHistory ? (
-            <HistoryView onBack={() => setShowHistory(false)} />
+            <HistoryView onBack={() => setShowHistory(false)} onDeleteAll={deleteAllHistory} />
           ) : selectedDay !== null ? (
-            <WorkoutScreen 
-                day={selectedDay} 
-                onBack={() => setSelectedDay(null)} 
-                onSync={syncToCloud} 
-                storage={storage} 
-            />
+            <WorkoutScreen day={selectedDay} onBack={() => setSelectedDay(null)} onSync={syncToCloud} storage={storage} />
           ) : (
             <>
               <div className="grid gap-4 mb-6">
@@ -156,9 +158,9 @@
                   </button>
                 ))}
               </div>
-              <button onClick={() => setShowHistory(true)} className="w-full bg-slate-800 py-5 rounded-xl border border-slate-700 font-bold uppercase tracking-widest text-xs mb-8">History</button>
+              <button onClick={() => setShowHistory(true)} className="w-full bg-slate-800 py-5 rounded-xl border border-slate-700 font-bold uppercase tracking-widest text-xs mb-8 shadow-lg">History</button>
               <div className="flex justify-between px-2">
-                <button onClick={() => loadCloudData(localStorage.getItem('gdrive_token'))} className="text-green-600 text-[10px] font-black uppercase tracking-widest">Manual Cloud Pull ☁️</button>
+                <button onClick={() => loadCloudData(localStorage.getItem('gdrive_token'))} className="text-green-600 text-[10px] font-black uppercase tracking-widest">Refresh Cloud ☁️</button>
                 <button onClick={() => { localStorage.clear(); window.location.reload(); }} className="text-slate-600 text-[10px] font-black uppercase tracking-widest">Log Out</button>
               </div>
             </>
@@ -228,8 +230,8 @@
 
           <div className="space-y-5">
             {config.type === 'sets' && config.warmUp && (
-              <div className="bg-slate-800 p-6 rounded-3xl border border-slate-700 border-l-4 border-l-green-500 shadow-lg">
-                <h2 className="text-xl font-black text-green-500 uppercase tracking-tight italic mb-4">🏃 1KM RUN</h2>
+              <div className="bg-slate-800 p-6 rounded-3xl border border-slate-700 border-l-4 border-l-green-500">
+                <h2 className="text-xl font-black text-green-500 uppercase tracking-tight mb-4 italic text-center">🏃 1KM RUN</h2>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="bg-slate-900 p-2 rounded-2xl border border-slate-700 relative">
                     <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[8px] font-black text-slate-600 uppercase">SPEED</span>
@@ -247,7 +249,7 @@
               const lastEx = lastWorkout?.exercises?.find(le => le.id === ex.id);
               return (
                 <div key={ex.id} className="bg-slate-800 p-8 rounded-3xl border border-slate-700 shadow-lg relative">
-                  <h3 className="font-black text-xl text-white uppercase tracking-tight leading-none mb-6">{ex.name}</h3>
+                  <h3 className="font-black text-xl text-white uppercase tracking-tight mb-6">{ex.name}</h3>
                   {config.type === 'rounds' ? (
                     <div className="space-y-4">
                       <button onClick={() => {const u = [...exercises]; u[i].rounds = u[i].rounds < config.rounds ? u[i].rounds + 1 : 0; setExercises(u);}} className={`w-full py-5 rounded-2xl font-black uppercase tracking-widest ${ex.rounds === config.rounds ? 'bg-green-900/40 text-green-400 border-2 border-green-500/50' : 'bg-slate-700 text-white'}`}>Round {ex.rounds}/{config.rounds}</button>
@@ -261,11 +263,9 @@
                   ) : (
                     <div className="space-y-4">
                       {ex.completedSets?.map((set, sIdx) => {
-                        const isDone = set.weight !== '' && set.reps !== '';
                         const lastS = lastEx?.completedSets?.[sIdx];
                         return (
-                          <div key={sIdx} className={`flex items-center gap-3 p-3 rounded-2xl border transition-all duration-300 ${isDone ? 'bg-green-900/10 border-green-500/50' : 'bg-slate-900/50 border-slate-700'}`}>
-                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-[10px] ${isDone ? 'text-green-500' : 'text-slate-700'}`}>S{sIdx+1}</div>
+                          <div key={sIdx} className="flex items-center gap-3 p-3 rounded-2xl border border-slate-700 bg-slate-900/50">
                             <div className="flex-1 relative">
                                 <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[8px] font-black text-slate-600 uppercase">KG</span>
                                 <input type="number" placeholder={lastS?.weight || "0"} className="w-full bg-transparent pl-8 pr-2 py-3 text-xl font-bold text-white text-center outline-none" value={set.weight} onChange={(e) => {const u = [...exercises]; u[i].completedSets[sIdx].weight = e.target.value; setExercises(u);}} />
@@ -285,25 +285,28 @@
             })}
           </div>
           <div className="mt-12 space-y-4">
-              <button onClick={() => completeWorkout(false)} className="w-full py-6 rounded-[2rem] font-black text-2xl shadow-2xl bg-green-600 hover:bg-green-500 uppercase tracking-tighter shadow-green-900/40 active:scale-95 transition-all">Sync Workout ☁️</button>
-              <button onClick={() => completeWorkout(true)} className="w-full py-4 rounded-2xl font-black text-xs border-2 border-slate-700 text-slate-500 uppercase tracking-widest active:scale-95 transition-all">Save Baseline Goals</button>
+              <button onClick={() => completeWorkout(false)} className="w-full py-6 rounded-[2rem] font-black text-2xl shadow-2xl bg-green-600 hover:bg-green-500 uppercase tracking-tighter shadow-green-900/40">Complete Workout ☁️</button>
+              <button onClick={() => completeWorkout(true)} className="w-full py-4 rounded-2xl font-black text-xs border-2 border-slate-700 text-slate-500 uppercase tracking-widest">Set Goals</button>
           </div>
         </div>
       );
     }
 
-    function HistoryView({ onBack }) {
+    function HistoryView({ onBack, onDeleteAll }) {
       const historyKeys = Object.keys(storage.data).filter(k => k.startsWith('workout:'));
       const history = historyKeys.map(k => JSON.parse(storage.data[k])).sort((a,b) => new Date(b.date) - new Date(a.date));
       return (
         <div className="min-h-screen">
           <button onClick={onBack} className="mb-8 flex items-center gap-2 text-slate-500 font-black uppercase text-[10px] tracking-widest">Back</button>
-          <h1 className="text-3xl font-black mb-8 text-green-500 uppercase italic">History</h1>
-          <div className="space-y-4">
-            {history.map((w, idx) => (
+          <div className="flex justify-between items-center mb-8">
+            <h1 className="text-3xl font-black text-green-500 uppercase italic">History</h1>
+            <button onClick={onDeleteAll} className="text-red-500 font-black uppercase text-[10px] tracking-widest px-4 py-2 border border-red-500/20 rounded-lg">Wipe History</button>
+          </div>
+          <div className="space-y-4 pb-20">
+            {history.length === 0 ? <p className="text-center py-10 text-slate-600 font-black uppercase tracking-widest text-xs">No entries found</p> : history.map((w, idx) => (
               <div key={idx} className="bg-slate-800 p-6 rounded-[2rem] border border-slate-700 shadow-lg">
-                <div className="flex justify-between items-start mb-4">
-                  <div><h3 className="text-xl font-black text-green-500 uppercase">{w.day} {w.isSeed && "(INIT)"}</h3><p className="text-[10px] text-slate-500">{new Date(w.date).toLocaleDateString()}</p></div>
+                <div className="flex justify-between items-start">
+                  <div><h3 className="text-xl font-black text-green-500 uppercase leading-none">{w.day} {w.isSeed && <span className="text-[8px] text-slate-600">(GOALS)</span>}</h3><p className="text-[10px] text-slate-500 mt-1 uppercase font-bold">{new Date(w.date).toLocaleDateString()}</p></div>
                   <div className="text-3xl font-mono font-black">{Math.floor(w.time/60)}:{(w.time%60).toString().padStart(2,'0')}</div>
                 </div>
               </div>
