@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Workout Tracker Cloud</title>
+  <link rel="icon" href="data:,"> <title>Workout Tracker Cloud</title>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -15,7 +15,7 @@
     body { overscroll-behavior-y: contain; background-color: #0f172a; }
     .no-scrollbar::-webkit-scrollbar { display: none; }
     input::placeholder { color: rgba(100, 116, 139, 0.6); font-weight: 800; }
-    .sync-overlay { background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(4px); }
+    .sync-overlay { background: rgba(15, 23, 42, 0.9); backdrop-filter: blur(8px); }
   </style>
 </head>
 <body class="bg-slate-900 text-white font-sans selection:bg-green-500/30">
@@ -26,7 +26,6 @@
     const CLIENT_ID = '993686805304-ejcjgvg9or29fi8e7gsek1kqljob2hok.apps.googleusercontent.com';
     const SCOPES = 'https://www.googleapis.com/auth/drive.file';
 
-    // Global storage object with Cloud Logic
     const storage = {
       data: JSON.parse(localStorage.getItem('workoutData') || '{}'),
       async get(key) { return this.data[key] ? { key, value: this.data[key] } : null; },
@@ -39,36 +38,10 @@
     };
 
     const workoutData = {
-      1: { type: 'rounds', rounds: 3, exercises: [
-        { id: 1, name: '20m dumbbell lunges', trackWeight: true }, 
-        { id: 2, name: '20m sled push', trackWeight: true }, 
-        { id: 3, name: '500m rowing' }, 
-        { id: 4, name: '15 goblet squats', trackWeight: true }, 
-        { id: 5, name: '15 box jumps' }
-      ]},
-      2: { type: 'sets', warmUp: { name: '1km Run' }, exercises: [
-        { id: 1, name: 'Leg press', sets: 4 },
-        { id: 2, name: 'Bench press', sets: 4 },
-        { id: 3, name: 'Cable row', sets: 4 },
-        { id: 4, name: 'Bulgarian split squats', sets: 3 },
-        { id: 5, name: 'Face pulls', sets: 3 }
-      ], finisher: { name: '15 min run' }},
-      3: { type: 'rounds', rounds: 3, exercises: [
-        { id: 1, name: '10 pull-ups' }, 
-        { id: 2, name: '10 dips' }, 
-        { id: 3, name: '10 barbell thrusters', trackWeight: true }, 
-        { id: 4, name: '10m sled pull', trackWeight: true }, 
-        { id: 5, name: '15 push-ups' }, 
-        { id: 6, name: '500m rowing' }
-      ]},
-      4: { type: 'sets', warmUp: { name: '1km Run' }, exercises: [
-        { id: 1, name: 'Leg curls', sets: 4 },
-        { id: 2, name: 'Overhead press', sets: 4 },
-        { id: 3, name: 'Lat pulldown', sets: 4 },
-        { id: 4, name: 'Incline dumbbell press', sets: 3 },
-        { id: 5, name: 'Cable triceps pushdowns', sets: 3 },
-        { id: 6, name: 'Dumbbell curls', sets: 3 }
-      ], finisher: { name: '15 min run' }},
+      1: { type: 'rounds', rounds: 3, exercises: [{ id: 1, name: '20m dumbbell lunges', trackWeight: true }, { id: 2, name: '20m sled push', trackWeight: true }, { id: 3, name: '500m rowing' }, { id: 4, name: '15 goblet squats', trackWeight: true }, { id: 5, name: '15 box jumps' }]},
+      2: { type: 'sets', warmUp: { name: '1km Run' }, exercises: [{ id: 1, name: 'Leg press', sets: 4 }, { id: 2, name: 'Bench press', sets: 4 }, { id: 3, name: 'Cable row', sets: 4 }, { id: 4, name: 'Bulgarian split squats', sets: 3 }, { id: 5, name: 'Face pulls', sets: 3 }], finisher: { name: '15 min run' }},
+      3: { type: 'rounds', rounds: 3, exercises: [{ id: 1, name: '10 pull-ups' }, { id: 2, name: '10 dips' }, { id: 3, name: '10 barbell thrusters', trackWeight: true }, { id: 4, name: '10m sled pull', trackWeight: true }, { id: 5, name: '15 push-ups' }, { id: 6, name: '500m rowing' }]},
+      4: { type: 'sets', warmUp: { name: '1km Run' }, exercises: [{ id: 1, name: 'Leg curls', sets: 4 }, { id: 2, name: 'Overhead press', sets: 4 }, { id: 3, name: 'Lat pulldown', sets: 4 }, { id: 4, name: 'Incline dumbbell press', sets: 3 }, { id: 5, name: 'Cable triceps pushdowns', sets: 3 }, { id: 6, name: 'Dumbbell curls', sets: 3 }], finisher: { name: '15 min run' }},
       5: { type: 'other', exercises: [] }
     };
 
@@ -100,6 +73,12 @@
         return () => clearInterval(timer);
       }, []);
 
+      const handleAuthError = () => {
+        localStorage.removeItem('gdrive_token');
+        setIsLoggedIn(false);
+        setIsSyncing(false);
+      };
+
       function initGoogle() {
         const client = google.accounts.oauth2.initTokenClient({
           client_id: CLIENT_ID, scope: SCOPES,
@@ -112,7 +91,6 @@
           }
         });
         setTokenClient(client);
-        
         gapi.load('client', async () => {
           await gapi.client.init({});
           const savedToken = localStorage.getItem('gdrive_token');
@@ -126,31 +104,36 @@
       }
 
       const loadCloudData = async (token) => {
+        if (!token) return;
         setIsSyncing(true);
         try {
           const res = await fetch('https://www.googleapis.com/drive/v3/files?q=name="workouts.json"&fields=files(id,name)', {
             headers: { Authorization: `Bearer ${token}` }
           });
+          if (res.status === 401) return handleAuthError();
           const data = await res.json();
           if (data.files && data.files.length > 0) {
             const fileRes = await fetch(`https://www.googleapis.com/drive/v3/files/${data.files[0].id}?alt=media`, {
               headers: { Authorization: `Bearer ${token}` }
             });
+            if (fileRes.status === 401) return handleAuthError();
             const cloudData = await fileRes.json();
             storage.data = cloudData;
             localStorage.setItem('workoutData', JSON.stringify(cloudData));
           }
-        } catch (e) { console.error("Cloud Load Error:", e); }
+        } catch (e) { console.error("Load Error:", e); }
         setIsSyncing(false);
       };
 
       const syncToCloud = async () => {
-        setIsSyncing(true);
         const token = localStorage.getItem('gdrive_token');
+        if (!token) return handleAuthError();
+        setIsSyncing(true);
         try {
           const listRes = await fetch('https://www.googleapis.com/drive/v3/files?q=name="workouts.json"', {
             headers: { Authorization: `Bearer ${token}` }
           });
+          if (listRes.status === 401) return handleAuthError();
           const listData = await listRes.json();
           const fileId = listData.files?.[0]?.id;
           
@@ -159,26 +142,22 @@
           form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
           form.append('file', new Blob([JSON.stringify(storage.data)], { type: 'application/json' }));
 
-          await fetch(fileId ? `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart` : 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+          const syncRes = await fetch(fileId ? `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart` : 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
             method: fileId ? 'PATCH' : 'POST', headers: { Authorization: `Bearer ${token}` }, body: form
           });
-        } catch (e) { console.error("Cloud Sync Error:", e); }
+          if (syncRes.status === 401) return handleAuthError();
+        } catch (e) { console.error("Sync Error:", e); }
         setIsSyncing(false);
       };
 
-      const handleSignOut = () => {
-        localStorage.removeItem('gdrive_token');
-        setIsLoggedIn(false);
-        window.location.reload();
-      };
-
-      if (!isLibLoaded) return <div className="h-screen flex items-center justify-center font-bold bg-slate-900 uppercase italic text-green-500 animate-pulse">Initializing...</div>;
+      if (!isLibLoaded) return <div className="h-screen flex items-center justify-center font-bold bg-slate-900 uppercase italic text-green-500 animate-pulse">Syncing...</div>;
 
       if (!isLoggedIn) return (
         <div className="h-screen flex items-center justify-center bg-slate-900 p-6 text-center">
-            <div>
-              <h1 className="text-4xl font-black mb-12 italic text-green-500 uppercase tracking-tighter">Workout<br/>Cloud</h1>
-              <button onClick={() => tokenClient.requestAccessToken()} className="bg-green-600 px-12 py-5 rounded-3xl font-black uppercase tracking-widest shadow-2xl hover:bg-green-500 transition-all active:scale-95">Login with Google</button>
+            <div className="w-full max-w-xs">
+              <h1 className="text-4xl font-black mb-12 italic text-green-500 uppercase tracking-tighter leading-none">Workout<br/>Cloud</h1>
+              <button onClick={() => tokenClient.requestAccessToken()} className="bg-green-600 px-12 py-5 rounded-3xl font-black uppercase tracking-widest shadow-2xl hover:bg-green-500 w-full transition-all">Login with Google</button>
+              <p className="mt-6 text-[10px] text-slate-500 uppercase font-bold tracking-widest leading-relaxed">Session expired or not started.<br/>Please login to sync your data.</p>
             </div>
         </div>
       );
@@ -205,7 +184,7 @@
               <button onClick={() => setShowHistory(true)} className="w-full bg-slate-800 py-5 rounded-xl border border-slate-700 font-bold hover:bg-slate-700 transition-colors uppercase tracking-widest text-xs mb-4">History</button>
               <div className="flex justify-between px-2">
                 <button onClick={() => loadCloudData(localStorage.getItem('gdrive_token'))} className="text-green-600 text-[10px] font-black uppercase tracking-widest">Force Refresh ☁️</button>
-                <button onClick={handleSignOut} className="text-slate-600 text-[10px] font-black uppercase tracking-widest">Logout</button>
+                <button onClick={() => { localStorage.removeItem('gdrive_token'); window.location.reload(); }} className="text-slate-600 text-[10px] font-black uppercase tracking-widest">Logout</button>
               </div>
             </>
           )}
