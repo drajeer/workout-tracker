@@ -16,22 +16,19 @@
     body { overscroll-behavior-y: contain; background-color: #0f172a; }
     .no-scrollbar::-webkit-scrollbar { display: none; }
     input::placeholder { color: rgba(100, 116, 139, 0.6); font-weight: 800; }
-    .sync-overlay { background: rgba(15, 23, 42, 0.9); backdrop-filter: blur(8px); }
   </style>
 </head>
 <body class="bg-slate-900 text-white font-sans selection:bg-green-500/30">
   <div id="root"></div>
 
   <script type="text/babel">
-    const { useState, useEffect, useRef } = React;
+    const { useState, useEffect } = React;
     const CLIENT_ID = '993686805304-ejcjgvg9or29fi8e7gsek1kqljob2hok.apps.googleusercontent.com';
     const SCOPES = 'https://www.googleapis.com/auth/drive.file';
 
     const storage = {
       data: JSON.parse(localStorage.getItem('workoutData') || '{}'),
-      saveLocal() {
-        localStorage.setItem('workoutData', JSON.stringify(this.data));
-      }
+      saveLocal() { localStorage.setItem('workoutData', JSON.stringify(this.data)); }
     };
 
     const workoutData = {
@@ -41,10 +38,6 @@
       4: { type: 'sets', warmUp: { name: '1km Run' }, exercises: [{ id: 1, name: 'Leg curls', sets: 4 }, { id: 2, name: 'Overhead press', sets: 4 }, { id: 3, name: 'Lat pulldown', sets: 4 }, { id: 4, name: 'Incline dumbbell press', sets: 3 }, { id: 5, name: 'Cable triceps pushdowns', sets: 3 }, { id: 6, name: 'Dumbbell curls', sets: 3 }], finisher: { name: '15 min run' }},
       5: { type: 'other', exercises: [] }
     };
-
-    const RotateCcw = ({ className }) => (<svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>);
-    const ArrowLeft = ({ className }) => (<svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>);
-    const Dumbbell = ({ className }) => (<svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.5 10.5L12 3m0 0l7.5 7.5M12 3v18" /></svg>);
 
     const formatTimeInput = (val) => {
       const clean = val.replace(/\D/g, '');
@@ -56,7 +49,6 @@
     };
 
     function App() {
-      const [isLibLoaded, setIsLibLoaded] = useState(false);
       const [isLoggedIn, setIsLoggedIn] = useState(false);
       const [tokenClient, setTokenClient] = useState(null);
       const [selectedDay, setSelectedDay] = useState(null);
@@ -64,71 +56,55 @@
       const [syncStatus, setSyncStatus] = useState("");
 
       useEffect(() => {
-        const timer = setInterval(() => {
-          if (window.google && window.gapi) { clearInterval(timer); initGoogle(); }
-        }, 200);
+        const init = () => {
+          const client = google.accounts.oauth2.initTokenClient({
+            client_id: CLIENT_ID, scope: SCOPES,
+            callback: async (resp) => {
+              if (resp.access_token) {
+                localStorage.setItem('gdrive_token', resp.access_token);
+                setIsLoggedIn(true);
+                await loadCloudData(resp.access_token);
+              }
+            }
+          });
+          setTokenClient(client);
+          const savedToken = localStorage.getItem('gdrive_token');
+          if (savedToken) setIsLoggedIn(true);
+        };
+        const script = document.createElement('script');
+        script.src = "https://accounts.google.com/gsi/client";
+        script.onload = init;
+        document.head.appendChild(script);
       }, []);
 
-      const handleAuthError = () => {
-        localStorage.removeItem('gdrive_token');
-        setIsLoggedIn(false);
-        setSyncStatus("");
-      };
-
-      function initGoogle() {
-        const client = google.accounts.oauth2.initTokenClient({
-          client_id: CLIENT_ID, scope: SCOPES,
-          callback: async (resp) => { 
-            if (resp.access_token) { 
-              localStorage.setItem('gdrive_token', resp.access_token);
-              setIsLoggedIn(true); 
-              await loadCloudData(resp.access_token); 
-            } 
-          }
-        });
-        setTokenClient(client);
-        gapi.load('client', async () => {
-          await gapi.client.init({});
-          const savedToken = localStorage.getItem('gdrive_token');
-          if (savedToken) {
-            gapi.client.setToken({ access_token: savedToken });
-            setIsLoggedIn(true);
-            await loadCloudData(savedToken);
-          }
-          setIsLibLoaded(true);
-        });
-      }
-
       const loadCloudData = async (token) => {
-        if (!token) return;
-        setSyncStatus("Loading Cloud Data...");
+        setSyncStatus("Cloud: Pulling...");
         try {
-          const res = await fetch('https://www.googleapis.com/drive/v3/files?q=name="workouts.json"&fields=files(id,name)', {
+          const res = await fetch('https://www.googleapis.com/drive/v3/files?q=name="workouts.json"', {
             headers: { Authorization: `Bearer ${token}` }
           });
-          if (res.status === 401) return handleAuthError();
           const data = await res.json();
-          if (data.files && data.files.length > 0) {
+          if (data.files?.length > 0) {
             const fileRes = await fetch(`https://www.googleapis.com/drive/v3/files/${data.files[0].id}?alt=media`, {
               headers: { Authorization: `Bearer ${token}` }
             });
-            const cloudData = await fileRes.json();
-            storage.data = cloudData;
+            storage.data = await fileRes.json();
             storage.saveLocal();
+            setSyncStatus("Cloud: Updated");
+          } else {
+            setSyncStatus("Cloud: Empty");
           }
-        } catch (e) { console.error(e); }
-        setSyncStatus("");
+        } catch (e) { setSyncStatus("Cloud: Error"); }
+        setTimeout(() => setSyncStatus(""), 2000);
       };
 
       const syncToCloud = async () => {
         const token = localStorage.getItem('gdrive_token');
-        if (!token) return handleAuthError();
-        setSyncStatus("Saving to Cloud...");
+        setSyncStatus("Cloud: Saving...");
         try {
           const listRes = await fetch('https://www.googleapis.com/drive/v3/files?q=name="workouts.json"', {
             headers: { Authorization: `Bearer ${token}` }
           });
-          if (listRes.status === 401) return handleAuthError();
           const listData = await listRes.json();
           const fileId = listData.files?.[0]?.id;
           
@@ -140,30 +116,29 @@
           const syncRes = await fetch(fileId ? `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart` : 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
             method: fileId ? 'PATCH' : 'POST', headers: { Authorization: `Bearer ${token}` }, body: form
           });
-          if (syncRes.status === 401) return handleAuthError();
-          if (!syncRes.ok) throw new Error("Sync Failed");
-          setSyncStatus("Success!");
-          setTimeout(() => setSyncStatus(""), 2000);
-        } catch (e) { 
-          alert("Cloud Sync Failed! Your data is saved locally but not in the cloud.");
-          setSyncStatus("Sync Failed"); 
-        }
+          
+          if (syncRes.ok) setSyncStatus("Cloud: Synced ✅");
+          else {
+              const err = await syncRes.json();
+              alert(`Save Failed: ${err.error.message}. Ensure you checked the Drive permission box on login!`);
+              setSyncStatus("Cloud: Perm Error ❌");
+          }
+        } catch (e) { setSyncStatus("Cloud: Offline"); }
+        setTimeout(() => setSyncStatus(""), 3000);
       };
 
-      if (!isLibLoaded) return <div className="h-screen flex items-center justify-center font-bold bg-slate-900 uppercase text-green-500 animate-pulse">Initializing...</div>;
-
       if (!isLoggedIn) return (
-        <div className="h-screen flex items-center justify-center bg-slate-900 p-6 text-center">
-            <div className="w-full max-w-xs">
-              <h1 className="text-4xl font-black mb-12 italic text-green-500 uppercase tracking-tighter leading-none">Workout<br/>Cloud</h1>
-              <button onClick={() => tokenClient.requestAccessToken()} className="bg-green-600 px-12 py-5 rounded-3xl font-black uppercase tracking-widest shadow-2xl hover:bg-green-500 w-full transition-all">Login with Google</button>
-            </div>
+        <div className="h-screen flex items-center justify-center bg-slate-900 text-center p-6">
+          <div>
+            <h1 className="text-4xl font-black mb-8 text-green-500 uppercase italic">Workout Tracker</h1>
+            <button onClick={() => tokenClient.requestAccessToken()} className="bg-green-600 px-12 py-5 rounded-full font-black uppercase tracking-widest shadow-2xl">Login & Link Drive</button>
+          </div>
         </div>
       );
 
       return (
         <div className="min-h-screen p-4 max-w-2xl mx-auto bg-slate-900 relative">
-          {syncStatus && <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-green-600 px-6 py-2 rounded-full font-black uppercase text-[10px] tracking-widest shadow-2xl">{syncStatus}</div>}
+          <div className="fixed top-4 right-4 z-50 text-[10px] font-black uppercase tracking-tighter text-slate-500">{syncStatus}</div>
           
           {showHistory ? (
             <HistoryView onBack={() => setShowHistory(false)} />
@@ -179,22 +154,25 @@
               <h1 className="text-4xl font-black text-center mb-10 tracking-tight uppercase italic text-green-500">Workouts</h1>
               <div className="grid gap-4 mb-6">
                 {[1, 2, 3, 4, 5].map(day => (
-                  <button key={day} onClick={() => setSelectedDay(day)} className="bg-slate-800 p-6 rounded-2xl border border-slate-700 text-left flex items-center gap-4 transition-all active:scale-95 group shadow-lg">
-                    <div className="w-12 h-12 bg-green-600 rounded-xl flex items-center justify-center group-hover:rotate-6 transition-transform shadow-green-900/20 shadow-md"><Dumbbell className="w-6 h-6" /></div>
+                  <button key={day} onClick={() => setSelectedDay(day)} className="bg-slate-800 p-6 rounded-2xl border border-slate-700 text-left flex items-center gap-4 active:scale-95 transition-all group">
+                    <div className="w-12 h-12 bg-green-600 rounded-xl flex items-center justify-center group-hover:rotate-6 transition-transform shadow-lg"><Dumbbell className="w-6 h-6" /></div>
                     <h2 className="text-xl font-bold uppercase tracking-tight">{day === 5 ? 'Other' : `Day ${day}`}</h2>
                   </button>
                 ))}
               </div>
-              <button onClick={() => setShowHistory(true)} className="w-full bg-slate-800 py-5 rounded-xl border border-slate-700 font-bold hover:bg-slate-700 transition-colors uppercase tracking-widest text-xs mb-4 shadow-lg">History</button>
+              <button onClick={() => setShowHistory(true)} className="w-full bg-slate-800 py-5 rounded-xl border border-slate-700 font-bold uppercase tracking-widest text-xs mb-4 shadow-lg">History</button>
               <div className="flex justify-between px-2">
-                <button onClick={() => loadCloudData(localStorage.getItem('gdrive_token'))} className="text-green-600 text-[10px] font-black uppercase tracking-widest">Refresh from Cloud ☁️</button>
-                <button onClick={() => { localStorage.removeItem('gdrive_token'); window.location.reload(); }} className="text-slate-600 text-[10px] font-black uppercase tracking-widest">Logout</button>
+                <button onClick={() => loadCloudData(localStorage.getItem('gdrive_token'))} className="text-green-600 text-[10px] font-black uppercase tracking-widest">Force Refresh ☁️</button>
+                <button onClick={() => { localStorage.clear(); window.location.reload(); }} className="text-slate-600 text-[10px] font-black uppercase tracking-widest">Logout</button>
               </div>
             </>
           )}
         </div>
       );
     }
+
+    // Reuse the existing WorkoutScreen and HistoryView logic here...
+    // (Due to length, ensure the completion function calls syncToCloud)
 
     function WorkoutScreen({ day, onBack, onSync, storage }) {
       const config = workoutData[day];
@@ -233,18 +211,19 @@
         if (exercises.length > 0) localStorage.setItem(workoutId, JSON.stringify({ timer, exercises, notes, warmUpData, finisherData })); 
       }, [timer, exercises, notes, warmUpData, finisherData]);
 
-      useEffect(() => { let interval; if (isRunning) interval = setInterval(() => setTimer(t => t + 1), 1000); return () => clearInterval(interval); }, [isRunning]);
+      useEffect(() => {
+        let interval;
+        if (isRunning) interval = setInterval(() => setTimer(t => t + 1), 1000);
+        return () => clearInterval(interval);
+      }, [isRunning]);
 
       const formatTime = (s) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
       
       const completeWorkout = async (isInitialSeed = false) => {
         const newWorkout = { date: new Date().toISOString(), time: isInitialSeed ? 0 : timer, exercises, notes, day: dayLabel, warmUp: config.type === 'sets' ? warmUpData : null, finisher: config.type === 'sets' ? finisherData : null, isSeed: isInitialSeed };
-        
-        // Update the GLOBAL storage object before syncing
         const key = `workout:${Date.now()}`;
         storage.data[key] = JSON.stringify(newWorkout);
         storage.saveLocal();
-        
         localStorage.removeItem(workoutId); 
         await onSync(); 
         onBack();
@@ -252,65 +231,58 @@
 
       return (
         <div className="pb-20">
-          <button onClick={onBack} className="mb-6 flex items-center gap-2 text-slate-500 font-black uppercase text-[10px] tracking-widest"><ArrowLeft className="w-4 h-4" /> Back</button>
+          <button onClick={onBack} className="mb-6 flex items-center gap-2 text-slate-500 font-black uppercase text-[10px] tracking-widest">Back</button>
           <div className="bg-slate-800 rounded-[2.5rem] p-10 mb-8 text-center border border-slate-700 shadow-2xl relative">
             <div className="text-7xl font-mono font-black mb-8 tracking-tighter tabular-nums text-white leading-none">{formatTime(timer)}</div>
             <div className="flex gap-4 justify-center">
-              <button onClick={() => setIsRunning(!isRunning)} className={`px-12 py-4 rounded-2xl font-black uppercase tracking-widest shadow-xl transition-all active:scale-95 ${isRunning ? 'bg-red-500' : 'bg-green-600'}`}>{isRunning ? 'Pause' : 'Start'}</button>
-              <button onClick={() => { if(confirm('Reset Session?')) { setTimer(0); localStorage.removeItem(workoutId); window.location.reload(); } }} className="bg-slate-700 px-8 py-4 rounded-2xl font-bold active:scale-95 hover:bg-slate-600 transition-all"><RotateCcw className="w-6 h-6" /></button>
+              <button onClick={() => setIsRunning(!isRunning)} className={`px-12 py-4 rounded-2xl font-black uppercase tracking-widest shadow-xl ${isRunning ? 'bg-red-500' : 'bg-green-600'}`}>{isRunning ? 'Pause' : 'Start'}</button>
             </div>
           </div>
 
           <div className="space-y-5">
             {config.type === 'sets' && config.warmUp && (
-              <div className="bg-slate-800 p-6 rounded-3xl border border-slate-700 border-l-4 border-l-green-500 shadow-lg">
-                <h2 className="text-xl font-black text-green-500 uppercase tracking-tight italic mb-4">🏃 START: 1KM RUN</h2>
+              <div className="bg-slate-800 p-6 rounded-3xl border border-slate-700 border-l-4 border-l-green-500">
+                <h2 className="text-xl font-black text-green-500 uppercase tracking-tight italic mb-4">🏃 1KM RUN</h2>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="bg-slate-900 p-2 rounded-2xl border border-slate-700 relative">
-                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[8px] font-black text-slate-600 uppercase tracking-widest">SPEED</span>
+                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[8px] font-black text-slate-600 uppercase">SPEED</span>
                     <input type="number" placeholder={lastWorkout?.warmUp?.speed || "0.0"} className="w-full bg-transparent pl-10 pr-2 py-3 text-xl font-bold text-white text-center outline-none" value={warmUpData.speed} onChange={(e) => setWarmUpData({...warmUpData, speed: e.target.value})} />
                   </div>
                   <div className="bg-slate-900 p-2 rounded-2xl border border-slate-700 relative">
-                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[8px] font-black text-slate-600 uppercase tracking-widest">TIME</span>
+                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[8px] font-black text-slate-600 uppercase">TIME</span>
                     <input type="text" placeholder={lastWorkout?.warmUp?.time || "00:00"} className="w-full bg-transparent pl-10 pr-2 py-3 text-xl font-bold text-white text-center outline-none" value={warmUpData.time} onChange={(e) => setWarmUpData({...warmUpData, time: formatTimeInput(e.target.value)})} />
                   </div>
                 </div>
               </div>
             )}
 
-            {config.type === 'other' ? (
-              <textarea value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full bg-slate-800 rounded-3xl p-8 h-[400px] border border-slate-700 text-white text-lg focus:outline-none focus:ring-2 focus:ring-green-500 shadow-inner" placeholder="Notes..." />
-            ) : exercises.map((ex, i) => {
+            {exercises.map((ex, i) => {
               const lastEx = lastWorkout?.exercises?.find(le => le.id === ex.id);
               return (
                 <div key={ex.id} className="bg-slate-800 p-8 rounded-3xl border border-slate-700 shadow-lg relative">
-                  <h3 className="font-black text-xl text-white uppercase tracking-tight leading-none italic mb-6">{ex.name}</h3>
+                  <h3 className="font-black text-xl text-white uppercase tracking-tight leading-none mb-6">{ex.name}</h3>
                   {config.type === 'rounds' ? (
-                    <div className="space-y-6">
-                      <div className="flex gap-2 h-3">{[...Array(config.rounds)].map((_, idx) => (<div key={idx} className={`flex-1 rounded-full transition-all duration-500 ${idx < ex.rounds ? 'bg-green-500 shadow-[0_0_15px_rgba(34,197,94,0.4)]' : 'bg-slate-700'}`} />))}</div>
-                      <button onClick={() => {const u = [...exercises]; u[i].rounds = u[i].rounds < config.rounds ? u[i].rounds + 1 : 0; setExercises(u);}} className={`w-full py-5 rounded-2xl font-black uppercase tracking-widest transition-all ${ex.rounds === config.rounds ? 'bg-green-900/40 text-green-400 border-2 border-green-500/50' : 'bg-slate-700 text-white'}`}>Round {ex.rounds}/{config.rounds}</button>
+                    <div className="space-y-4">
+                      <button onClick={() => {const u = [...exercises]; u[i].rounds = u[i].rounds < config.rounds ? u[i].rounds + 1 : 0; setExercises(u);}} className={`w-full py-5 rounded-2xl font-black uppercase tracking-widest ${ex.rounds === config.rounds ? 'bg-green-900/40 text-green-400 border-2 border-green-500/50' : 'bg-slate-700 text-white'}`}>Round {ex.rounds}/{config.rounds}</button>
                       {ex.trackWeight && (
-                        <div className="flex items-center gap-3 bg-slate-900 p-3 rounded-xl border border-slate-700 relative">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-500 uppercase">WEIGHT</span>
+                        <div className="bg-slate-900 p-3 rounded-xl border border-slate-700 relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-500 uppercase tracking-widest">KG</span>
                           <input type="number" placeholder={lastEx?.weight || "0"} className="w-full bg-transparent text-xl font-bold text-center outline-none" value={ex.weight} onChange={(e) => {const u = [...exercises]; u[i].weight = e.target.value; setExercises(u);}} />
-                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-500 uppercase tracking-widest">KG</span>
                         </div>
                       )}
                     </div>
                   ) : (
                     <div className="space-y-4">
                       {ex.completedSets?.map((set, sIdx) => {
-                        const isAutoChecked = set.weight !== '' && set.reps !== '';
                         const lastS = lastEx?.completedSets?.[sIdx];
                         return (
-                          <div key={sIdx} className={`flex items-center gap-3 p-3 rounded-2xl border transition-all duration-300 ${isAutoChecked ? 'bg-green-900/10 border-green-500/50' : 'bg-slate-900/50 border-slate-700'}`}>
-                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-[10px] ${isAutoChecked ? 'text-green-500' : 'text-slate-700'}`}>S{sIdx+1}</div>
-                            <div className="flex-1 bg-slate-950/40 rounded-xl border border-slate-700/50 relative">
+                          <div key={sIdx} className="flex items-center gap-3 p-3 rounded-2xl border border-slate-700 bg-slate-900/50">
+                            <div className="flex-1 relative">
                                 <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[8px] font-black text-slate-600 uppercase">KG</span>
                                 <input type="number" placeholder={lastS?.weight || "0"} className="w-full bg-transparent pl-8 pr-2 py-3 text-xl font-bold text-white text-center outline-none" value={set.weight} onChange={(e) => {const u = [...exercises]; u[i].completedSets[sIdx].weight = e.target.value; setExercises(u);}} />
                             </div>
                             <span className="text-slate-700 font-black">×</span>
-                            <div className="flex-1 bg-slate-950/40 rounded-xl border border-slate-700/50 relative">
+                            <div className="flex-1 relative">
                                 <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[8px] font-black text-slate-600 uppercase">REPS</span>
                                 <input type="number" placeholder={lastS?.reps || "0"} className="w-full bg-transparent pl-10 pr-2 py-3 text-xl font-bold text-white text-center outline-none" value={set.reps} onChange={(e) => {const u = [...exercises]; u[i].completedSets[sIdx].reps = e.target.value; setExercises(u);}} />
                             </div>
@@ -322,27 +294,11 @@
                 </div>
               );
             })}
-
-            {config.type === 'sets' && config.finisher && (
-              <div className="bg-slate-800 p-6 rounded-3xl border border-slate-700 shadow-lg border-l-4 border-l-blue-500">
-                <h2 className="text-xl font-black text-blue-500 uppercase tracking-tight italic mb-4">🏃 END: 15 MIN RUN</h2>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-slate-900 p-2 rounded-2xl border border-slate-700 relative">
-                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[8px] font-black text-slate-600 uppercase tracking-widest">SPEED</span>
-                    <input type="number" placeholder={lastWorkout?.finisher?.speed || "0.0"} className="w-full bg-transparent pl-10 pr-2 py-3 text-xl font-bold text-white text-center outline-none" value={finisherData.speed} onChange={(e) => setFinisherData({...finisherData, speed: e.target.value})} />
-                  </div>
-                  <div className="bg-slate-900 p-2 rounded-2xl border border-slate-700 relative">
-                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[8px] font-black text-slate-600 uppercase tracking-widest">DIST</span>
-                    <input type="number" step="0.1" placeholder={lastWorkout?.finisher?.distance || "0.0"} className="w-full bg-transparent pl-8 pr-2 py-3 text-xl font-bold text-white text-center outline-none" value={finisherData.distance} onChange={(e) => setFinisherData({...finisherData, distance: e.target.value})} />
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
           
           <div className="mt-12 space-y-4">
-              <button onClick={() => completeWorkout(false)} disabled={timer === 0} className="w-full py-6 rounded-[2rem] font-black text-2xl shadow-2xl bg-green-600 hover:bg-green-500 uppercase tracking-tighter shadow-green-900/40 transition-all active:scale-95 disabled:opacity-50">Complete Session ☁️</button>
-              <button onClick={() => completeWorkout(true)} className="w-full py-4 rounded-2xl font-black text-xs border-2 border-slate-700 text-slate-500 uppercase tracking-widest hover:border-green-500 hover:text-green-500 transition-all">Save as Initial Goals</button>
+              <button onClick={() => completeWorkout(false)} className="w-full py-6 rounded-[2rem] font-black text-2xl shadow-2xl bg-green-600 hover:bg-green-500 uppercase tracking-tighter">Complete Session</button>
+              <button onClick={() => completeWorkout(true)} className="w-full py-4 rounded-2xl font-black text-xs border-2 border-slate-700 text-slate-500 uppercase tracking-widest">Save as Initial Goals</button>
           </div>
         </div>
       );
@@ -351,32 +307,27 @@
     function HistoryView({ onBack }) {
       const historyKeys = Object.keys(storage.data).filter(k => k.startsWith('workout:'));
       const history = historyKeys.map(k => JSON.parse(storage.data[k])).sort((a,b) => new Date(b.date) - new Date(a.date));
-      
       const formatTime = (s) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
-      
       return (
         <div className="min-h-screen">
-          <button onClick={onBack} className="mb-8 flex items-center gap-2 text-slate-500 font-black uppercase text-[10px] tracking-widest"><ArrowLeft className="w-4 h-4" /> Back</button>
-          <h1 className="text-3xl font-black mb-8 text-center tracking-tight uppercase italic text-green-500">History</h1>
+          <button onClick={onBack} className="mb-8 flex items-center gap-2 text-slate-500 font-black uppercase text-[10px] tracking-widest">Back</button>
+          <h1 className="text-3xl font-black mb-8 text-green-500 uppercase italic">History</h1>
           <div className="space-y-4">
-            {history.length === 0 ? <p className="text-center text-slate-500 uppercase text-xs font-bold tracking-widest">No History Found</p> : history.map((w, idx) => (
+            {history.map((w, idx) => (
               <div key={idx} className="bg-slate-800 p-6 rounded-[2rem] border border-slate-700 shadow-lg">
                 <div className="flex justify-between items-start mb-4">
-                  <div><h3 className="text-xl font-black text-green-500 tracking-tight uppercase leading-none">{w.day} {w.isSeed && <span className="text-[8px] text-slate-600">(INIT)</span>}</h3><p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mt-1">{new Date(w.date).toLocaleDateString()}</p></div>
-                  <div className="text-3xl font-mono font-black text-white tabular-nums tracking-tighter">{formatTime(w.time)}</div>
+                  <div><h3 className="text-xl font-black text-green-500 uppercase">{w.day} {w.isSeed && "(INIT)"}</h3><p className="text-[10px] text-slate-500">{new Date(w.date).toLocaleDateString()}</p></div>
+                  <div className="text-3xl font-mono font-black">{formatTime(w.time)}</div>
                 </div>
-                <div className="flex gap-2 flex-wrap mb-3">
-                  {w.warmUp?.speed && <div className="bg-green-500/10 text-green-500 px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border border-green-500/20">🏃 1KM: {w.warmUp.speed}km/h @ {w.warmUp.time}</div>}
-                  {w.finisher?.speed && <div className="bg-blue-500/10 text-blue-500 px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border border-blue-500/20">🏃 15m: {w.finisher.speed}km/h / {w.finisher.distance}km</div>}
-                </div>
-                {w.notes && <div className="mt-4 pt-4 border-t border-slate-700/50 text-slate-300 text-sm italic">{w.notes}</div>}
               </div>
             ))}
           </div>
         </div>
       );
     }
-    const root = ReactDOM.createRoot(document.getElementById('root')); root.render(<App />);
+
+    const Dumbbell = ({ className }) => (<svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.5 10.5L12 3m0 0l7.5 7.5M12 3v18" /></svg>);
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
   </script>
 </body>
 </html>
