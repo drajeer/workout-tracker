@@ -73,7 +73,6 @@
     const RotateCcw = ({ className }) => (<svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>);
     const ArrowLeft = ({ className }) => (<svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>);
     const Dumbbell = ({ className }) => (<svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.5 10.5L12 3m0 0l7.5 7.5M12 3v18" /></svg>);
-    const Clock = ({ className }) => (<svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>);
 
     function App() {
       const [isLibLoaded, setIsLibLoaded] = useState(false);
@@ -127,12 +126,7 @@
           const res = await fetch('https://www.googleapis.com/drive/v3/files?q=name="workouts.json"', {
             headers: { Authorization: `Bearer ${token}` }
           });
-          
-          if (res.status === 401) {
-            handleSignOut();
-            return;
-          }
-
+          if (res.status === 401) { handleSignOut(); return; }
           const data = await res.json();
           if (data.files?.length > 0) {
             const fileRes = await fetch(`https://www.googleapis.com/drive/v3/files/${data.files[0].id}?alt=media`, {
@@ -164,8 +158,8 @@
       if (!isLoggedIn) return (
         <div className="h-screen flex items-center justify-center bg-slate-900 p-6 text-center">
             <div>
-                <h1 className="text-3xl font-black mb-8 italic tracking-tighter text-green-500 uppercase">Workout Tracker</h1>
-                <button onClick={() => tokenClient.requestAccessToken()} className="bg-green-600 px-10 py-4 rounded-2xl font-bold uppercase tracking-widest shadow-xl hover:bg-green-500 transition-all">Login with Google</button>
+                <h1 className="text-3xl font-black mb-8 italic tracking-tighter text-green-500 uppercase leading-none">Workout Tracker</h1>
+                <button onClick={() => tokenClient.requestAccessToken()} className="bg-green-600 px-10 py-4 rounded-2xl font-bold uppercase tracking-widest shadow-xl hover:bg-green-500 transition-all w-full">Login with Google</button>
             </div>
         </div>
       );
@@ -205,7 +199,6 @@
 
       useEffect(() => {
         const load = async () => {
-          // Load current progress
           const saved = localStorage.getItem(workoutId);
           if (saved) {
             const d = JSON.parse(saved);
@@ -218,8 +211,6 @@
              if (config.type === 'rounds') setExercises(config.exercises.map(ex => ({ ...ex, rounds: 0, weight: ex.trackWeight ? '' : undefined })));
              if (config.type === 'sets') setExercises(config.exercises.map(ex => ({ ...ex, completedSets: Array(ex.sets).fill(null).map(() => ({ weight: '', reps: '', completed: false })) })));
           }
-
-          // Load Goal data
           const res = await window.storage.list('workout:');
           if (res?.keys) {
             const items = await Promise.all(res.keys.map(async k => JSON.parse((await window.storage.get(k)).value)));
@@ -231,9 +222,7 @@
       }, [dayLabel]);
 
       useEffect(() => {
-        if (exercises.length > 0) {
-            localStorage.setItem(workoutId, JSON.stringify({ timer, exercises, notes, warmUpData, finisherData }));
-        }
+        if (exercises.length > 0) localStorage.setItem(workoutId, JSON.stringify({ timer, exercises, notes, warmUpData, finisherData }));
       }, [timer, exercises, notes, warmUpData, finisherData]);
 
       useEffect(() => {
@@ -259,16 +248,16 @@
             <div className="text-7xl font-mono font-black mb-8 tracking-tighter tabular-nums text-white leading-none">{formatTime(timer)}</div>
             <div className="flex gap-4 justify-center">
               <button onClick={() => setIsRunning(!isRunning)} className={`px-12 py-4 rounded-2xl font-black uppercase tracking-widest shadow-xl transition-all active:scale-95 ${isRunning ? 'bg-red-500' : 'bg-green-600'}`}>{isRunning ? 'Pause' : 'Start'}</button>
-              <button onClick={() => { if(confirm('Reset Session?')) { setTimer(0); localStorage.removeItem(workoutId); window.location.reload(); } }} className="bg-slate-700 px-8 py-4 rounded-2xl font-bold shadow-xl active:scale-95 hover:bg-slate-600 transition-colors"><RotateCcw className="w-6 h-6" /></button>
+              <button onClick={() => { if(confirm('Reset Session?')) { setTimer(0); localStorage.removeItem(workoutId); window.location.reload(); } }} className="bg-slate-700 px-8 py-4 rounded-2xl font-bold active:scale-95 hover:bg-slate-600"><RotateCcw className="w-6 h-6" /></button>
             </div>
           </div>
 
           <div className="space-y-5">
             {config.type === 'sets' && config.warmUp && (
-              <div className="bg-slate-800 p-6 rounded-3xl border border-slate-700 shadow-lg border-l-4 border-l-green-500">
+              <div className="bg-slate-800 p-6 rounded-3xl border border-slate-700 border-l-4 border-l-green-500">
                 <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-xl font-black text-green-500 flex items-center gap-2 uppercase tracking-tight italic">🏃 START: 1KM RUN</h2>
-                  {lastWorkout?.warmUp && <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Last: {lastWorkout.warmUp.speed}km/h</span>}
+                  <h2 className="text-xl font-black text-green-500 uppercase tracking-tight italic">🏃 START: 1KM RUN</h2>
+                  {lastWorkout?.warmUp && <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Goal: {lastWorkout.warmUp.speed}km/h</span>}
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="bg-slate-900 p-2 rounded-2xl border border-slate-700">
@@ -284,14 +273,14 @@
             )}
 
             {config.type === 'other' ? (
-              <textarea value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full bg-slate-800 rounded-3xl p-8 h-[400px] border border-slate-700 text-white text-lg focus:outline-none focus:ring-2 focus:ring-green-500 shadow-inner" placeholder="Detailed workout notes..." />
+              <textarea value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full bg-slate-800 rounded-3xl p-8 h-[400px] border border-slate-700 text-white text-lg focus:outline-none focus:ring-2 focus:ring-green-500 shadow-inner" placeholder="Workout details..." />
             ) : exercises.map((ex, i) => {
               const lastEx = lastWorkout?.exercises?.find(le => le.id === ex.id);
               return (
-                <div key={ex.id} className="bg-slate-800 p-8 rounded-3xl border border-slate-700 shadow-lg">
+                <div key={ex.id} className="bg-slate-800 p-8 rounded-3xl border border-slate-700 shadow-lg relative overflow-hidden">
                   <div className="flex justify-between items-center mb-6">
                     <h3 className="font-black text-xl text-white uppercase tracking-tight leading-none italic">{ex.name}</h3>
-                    {config.type === 'rounds' && lastEx?.weight && <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Last: {lastEx.weight}kg</span>}
+                    {config.type === 'rounds' && lastEx?.weight && <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Goal: {lastEx.weight}kg</span>}
                   </div>
                   {config.type === 'rounds' ? (
                     <div className="space-y-6">
@@ -307,20 +296,29 @@
                     </div>
                   ) : (
                     <div className="space-y-4">
-                      {ex.completedSets?.map((set, sIdx) => (
-                        <div key={sIdx} className={`flex items-center gap-3 p-3 rounded-2xl border transition-all ${set.completed ? 'bg-green-900/10 border-green-500/30' : 'bg-slate-900/50 border-slate-700'}`}>
-                          <button onClick={() => {const u = [...exercises]; u[i].completedSets[sIdx].completed = !set.completed; setExercises(u);}} className={`w-12 h-12 rounded-xl border-2 flex items-center justify-center transition-all ${set.completed ? 'bg-green-600 border-green-500 shadow-lg shadow-green-900/40' : 'border-slate-700 text-slate-600'}`}>{set.completed ? '✓' : sIdx+1}</button>
-                          <div className="flex-1 text-center">
-                            {lastEx?.completedSets?.[sIdx] && <span className="block text-[7px] text-slate-500 font-black uppercase tracking-widest mb-1">Last: {lastEx.completedSets[sIdx].weight}kg</span>}
-                            <input type="number" placeholder="0" className="w-full bg-transparent p-2 text-xl font-bold text-center outline-none uppercase" value={set.weight} onChange={(e) => {const u = [...exercises]; u[i].completedSets[sIdx].weight = e.target.value; setExercises(u);}} />
+                      {ex.completedSets?.map((set, sIdx) => {
+                        // AUTO-STATUS LOGIC: turns green if BOTH kg and reps are entered
+                        const isAutoChecked = set.weight !== '' && set.reps !== '';
+                        return (
+                          <div key={sIdx} className={`flex items-center gap-3 p-3 rounded-2xl border transition-all duration-300 ${isAutoChecked ? 'bg-green-900/10 border-green-500/50' : 'bg-slate-900/50 border-slate-700'}`}>
+                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-[10px] ${isAutoChecked ? 'text-green-500' : 'text-slate-700'}`}>S{sIdx+1}</div>
+                            
+                            <div className="flex-1 bg-slate-950/40 rounded-xl border border-slate-700/50 relative">
+                                {lastEx?.completedSets?.[sIdx] && <span className="absolute -top-1 right-2 text-[6px] text-slate-600 font-bold uppercase">G: {lastEx.completedSets[sIdx].weight}kg</span>}
+                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[8px] font-black text-slate-600 uppercase">KG</span>
+                                <input type="number" placeholder="0" className="w-full bg-transparent pl-8 pr-2 py-3 text-xl font-bold text-white text-center outline-none" value={set.weight} onChange={(e) => {const u = [...exercises]; u[i].completedSets[sIdx].weight = e.target.value; setExercises(u);}} />
+                            </div>
+
+                            <span className="text-slate-700 font-black">×</span>
+
+                            <div className="flex-1 bg-slate-950/40 rounded-xl border border-slate-700/50 relative">
+                                {lastEx?.completedSets?.[sIdx] && <span className="absolute -top-1 right-2 text-[6px] text-slate-600 font-bold uppercase">L: {lastEx.completedSets[sIdx].reps}r</span>}
+                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[8px] font-black text-slate-600 uppercase">REPS</span>
+                                <input type="number" placeholder="0" className="w-full bg-transparent pl-10 pr-2 py-3 text-xl font-bold text-white text-center outline-none" value={set.reps} onChange={(e) => {const u = [...exercises]; u[i].completedSets[sIdx].reps = e.target.value; setExercises(u);}} />
+                            </div>
                           </div>
-                          <span className="text-slate-700 font-black">×</span>
-                          <div className="flex-1 text-center">
-                            {lastEx?.completedSets?.[sIdx] && <span className="block text-[7px] text-slate-500 font-black uppercase tracking-widest mb-1">Last: {lastEx.completedSets[sIdx].reps}r</span>}
-                            <input type="number" placeholder="0" className="w-full bg-transparent p-2 text-xl font-bold text-center outline-none uppercase" value={set.reps} onChange={(e) => {const u = [...exercises]; u[i].completedSets[sIdx].reps = e.target.value; setExercises(u);}} />
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -330,7 +328,7 @@
             {config.type === 'sets' && config.finisher && (
               <div className="bg-slate-800 p-6 rounded-3xl border border-slate-700 shadow-lg border-l-4 border-l-blue-500">
                 <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-xl font-black text-blue-500 flex items-center gap-2 uppercase tracking-tight italic">🏃 END: 15 MIN RUN</h2>
+                  <h2 className="text-xl font-black text-blue-500 uppercase tracking-tight italic">🏃 END: 15 MIN RUN</h2>
                   {lastWorkout?.finisher && <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Last: {lastWorkout.finisher.speed}km/h</span>}
                 </div>
                 <div className="grid grid-cols-2 gap-3">
@@ -346,7 +344,7 @@
               </div>
             )}
           </div>
-          <button onClick={completeWorkout} disabled={timer === 0} className="w-full py-6 rounded-[2rem] font-black text-2xl mt-12 shadow-2xl transition-all active:scale-95 bg-green-600 hover:bg-green-500 uppercase tracking-tighter shadow-green-900/40">Complete Session ☁️</button>
+          <button onClick={completeWorkout} disabled={timer === 0} className="w-full py-6 rounded-[2rem] font-black text-2xl mt-12 shadow-2xl bg-green-600 hover:bg-green-500 uppercase tracking-tighter shadow-green-900/40">Complete Session ☁️</button>
         </div>
       );
     }
