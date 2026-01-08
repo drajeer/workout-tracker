@@ -92,6 +92,11 @@
         return () => clearInterval(timer);
       }, []);
 
+      const handleSignOut = () => {
+        localStorage.removeItem('gdrive_token');
+        setIsLoggedIn(false);
+      };
+
       function initGoogle() {
         const client = google.accounts.oauth2.initTokenClient({
           client_id: CLIENT_ID, scope: SCOPES,
@@ -104,6 +109,7 @@
           }
         });
         setTokenClient(client);
+        
         gapi.load('client', async () => {
           await gapi.client.init({});
           const savedToken = localStorage.getItem('gdrive_token');
@@ -121,6 +127,12 @@
           const res = await fetch('https://www.googleapis.com/drive/v3/files?q=name="workouts.json"', {
             headers: { Authorization: `Bearer ${token}` }
           });
+          
+          if (res.status === 401) {
+            handleSignOut();
+            return;
+          }
+
           const data = await res.json();
           if (data.files?.length > 0) {
             const fileRes = await fetch(`https://www.googleapis.com/drive/v3/files/${data.files[0].id}?alt=media`, {
@@ -149,7 +161,14 @@
       };
 
       if (!isLibLoaded) return <div className="h-screen flex items-center justify-center font-bold bg-slate-900 uppercase">Connecting...</div>;
-      if (!isLoggedIn) return <div className="h-screen flex items-center justify-center bg-slate-900 p-6"><button onClick={() => tokenClient.requestAccessToken()} className="bg-green-600 px-10 py-4 rounded-2xl font-bold uppercase tracking-widest shadow-xl hover:bg-green-500 w-full max-w-xs transition-all">Login with Google</button></div>;
+      if (!isLoggedIn) return (
+        <div className="h-screen flex items-center justify-center bg-slate-900 p-6 text-center">
+            <div>
+                <h1 className="text-3xl font-black mb-8 italic tracking-tighter text-green-500 uppercase">Workout Tracker</h1>
+                <button onClick={() => tokenClient.requestAccessToken()} className="bg-green-600 px-10 py-4 rounded-2xl font-bold uppercase tracking-widest shadow-xl hover:bg-green-500 transition-all">Login with Google</button>
+            </div>
+        </div>
+      );
 
       if (showHistory) return <HistoryView onBack={() => setShowHistory(false)} />;
       if (selectedDay !== null) return <WorkoutScreen day={selectedDay} onBack={() => setSelectedDay(null)} onSync={syncToCloud} />;
@@ -165,7 +184,8 @@
               </button>
             ))}
           </div>
-          <button onClick={() => setShowHistory(true)} className="w-full bg-slate-800 py-5 rounded-xl border border-slate-700 font-bold hover:bg-slate-700 transition-colors uppercase tracking-widest text-xs">View History</button>
+          <button onClick={() => setShowHistory(true)} className="w-full bg-slate-800 py-5 rounded-xl border border-slate-700 font-bold hover:bg-slate-700 transition-colors uppercase tracking-widest text-xs mb-4">History</button>
+          <button onClick={handleSignOut} className="w-full text-slate-600 text-[10px] font-black uppercase tracking-widest hover:text-red-400">Logout / Reset Token</button>
         </div>
       );
     }
@@ -175,27 +195,31 @@
       const dayLabel = day === 5 ? 'Other' : `Day ${day}`;
       const workoutId = `workout:current:${dayLabel}`;
 
-      const getSaved = () => {
-        const d = localStorage.getItem(workoutId);
-        return d ? JSON.parse(d) : null;
-      };
-      const saved = getSaved();
-
-      const [timer, setTimer] = useState(saved?.timer || 0);
+      const [timer, setTimer] = useState(0);
       const [isRunning, setIsRunning] = useState(false);
-      const [notes, setNotes] = useState(saved?.notes || "");
-      const [warmUpData, setWarmUpData] = useState(saved?.warmUpData || { speed: '', time: '' });
-      const [finisherData, setFinisherData] = useState(saved?.finisherData || { speed: '', distance: '' });
+      const [notes, setNotes] = useState("");
+      const [warmUpData, setWarmUpData] = useState({ speed: '', time: '' });
+      const [finisherData, setFinisherData] = useState({ speed: '', distance: '' });
       const [lastWorkout, setLastWorkout] = useState(null);
-      const [exercises, setExercises] = useState(() => {
-        if (saved?.exercises) return saved.exercises;
-        if (config.type === 'rounds') return config.exercises.map(ex => ({ ...ex, rounds: 0, weight: ex.trackWeight ? '' : undefined }));
-        if (config.type === 'sets') return config.exercises.map(ex => ({ ...ex, completedSets: Array(ex.sets).fill(null).map(() => ({ weight: '', reps: '', completed: false })) }));
-        return [];
-      });
+      const [exercises, setExercises] = useState([]);
 
       useEffect(() => {
-        const loadLast = async () => {
+        const load = async () => {
+          // Load current progress
+          const saved = localStorage.getItem(workoutId);
+          if (saved) {
+            const d = JSON.parse(saved);
+            setTimer(d.timer || 0);
+            setNotes(d.notes || "");
+            setWarmUpData(d.warmUpData || { speed: '', time: '' });
+            setFinisherData(d.finisherData || { speed: '', distance: '' });
+            setExercises(d.exercises || []);
+          } else {
+             if (config.type === 'rounds') setExercises(config.exercises.map(ex => ({ ...ex, rounds: 0, weight: ex.trackWeight ? '' : undefined })));
+             if (config.type === 'sets') setExercises(config.exercises.map(ex => ({ ...ex, completedSets: Array(ex.sets).fill(null).map(() => ({ weight: '', reps: '', completed: false })) })));
+          }
+
+          // Load Goal data
           const res = await window.storage.list('workout:');
           if (res?.keys) {
             const items = await Promise.all(res.keys.map(async k => JSON.parse((await window.storage.get(k)).value)));
@@ -203,11 +227,13 @@
             if (match) setLastWorkout(match);
           }
         };
-        loadLast();
+        load();
       }, [dayLabel]);
 
       useEffect(() => {
-        localStorage.setItem(workoutId, JSON.stringify({ timer, exercises, notes, warmUpData, finisherData }));
+        if (exercises.length > 0) {
+            localStorage.setItem(workoutId, JSON.stringify({ timer, exercises, notes, warmUpData, finisherData }));
+        }
       }, [timer, exercises, notes, warmUpData, finisherData]);
 
       useEffect(() => {
@@ -265,7 +291,7 @@
                 <div key={ex.id} className="bg-slate-800 p-8 rounded-3xl border border-slate-700 shadow-lg">
                   <div className="flex justify-between items-center mb-6">
                     <h3 className="font-black text-xl text-white uppercase tracking-tight leading-none italic">{ex.name}</h3>
-                    {config.type === 'rounds' && lastEx?.weight && <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Goal: {lastEx.weight}kg</span>}
+                    {config.type === 'rounds' && lastEx?.weight && <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Last: {lastEx.weight}kg</span>}
                   </div>
                   {config.type === 'rounds' ? (
                     <div className="space-y-6">
@@ -281,11 +307,11 @@
                     </div>
                   ) : (
                     <div className="space-y-4">
-                      {ex.completedSets.map((set, sIdx) => (
+                      {ex.completedSets?.map((set, sIdx) => (
                         <div key={sIdx} className={`flex items-center gap-3 p-3 rounded-2xl border transition-all ${set.completed ? 'bg-green-900/10 border-green-500/30' : 'bg-slate-900/50 border-slate-700'}`}>
                           <button onClick={() => {const u = [...exercises]; u[i].completedSets[sIdx].completed = !set.completed; setExercises(u);}} className={`w-12 h-12 rounded-xl border-2 flex items-center justify-center transition-all ${set.completed ? 'bg-green-600 border-green-500 shadow-lg shadow-green-900/40' : 'border-slate-700 text-slate-600'}`}>{set.completed ? '✓' : sIdx+1}</button>
                           <div className="flex-1 text-center">
-                            {lastEx?.completedSets?.[sIdx] && <span className="block text-[7px] text-slate-500 font-black uppercase tracking-widest mb-1">Goal: {lastEx.completedSets[sIdx].weight}kg</span>}
+                            {lastEx?.completedSets?.[sIdx] && <span className="block text-[7px] text-slate-500 font-black uppercase tracking-widest mb-1">Last: {lastEx.completedSets[sIdx].weight}kg</span>}
                             <input type="number" placeholder="0" className="w-full bg-transparent p-2 text-xl font-bold text-center outline-none uppercase" value={set.weight} onChange={(e) => {const u = [...exercises]; u[i].completedSets[sIdx].weight = e.target.value; setExercises(u);}} />
                           </div>
                           <span className="text-slate-700 font-black">×</span>
@@ -305,7 +331,7 @@
               <div className="bg-slate-800 p-6 rounded-3xl border border-slate-700 shadow-lg border-l-4 border-l-blue-500">
                 <div className="flex justify-between items-center mb-4">
                   <h2 className="text-xl font-black text-blue-500 flex items-center gap-2 uppercase tracking-tight italic">🏃 END: 15 MIN RUN</h2>
-                  {lastWorkout?.finisher && <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Goal: {lastWorkout.finisher.speed}km/h</span>}
+                  {lastWorkout?.finisher && <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Last: {lastWorkout.finisher.speed}km/h</span>}
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="bg-slate-900 p-2 rounded-2xl border border-slate-700">
