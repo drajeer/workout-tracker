@@ -47,13 +47,13 @@
         { id: 4, name: '15 goblet squats', trackWeight: true }, 
         { id: 5, name: '15 box jumps' }
       ]},
-      2: { type: 'sets', cardio: { name: '15 min run', duration: 15 }, exercises: [
+      2: { type: 'sets', warmUp: { name: '1km Run', type: 'speed_time' }, exercises: [
         { id: 1, name: 'Leg press', sets: 4 },
         { id: 2, name: 'Bench press', sets: 4 },
         { id: 3, name: 'Cable row', sets: 4 },
         { id: 4, name: 'Bulgarian split squats', sets: 3 },
         { id: 5, name: 'Face pulls', sets: 3 }
-      ]},
+      ], finisher: { name: '15 min run', type: 'speed_distance' }},
       3: { type: 'rounds', rounds: 3, exercises: [
         { id: 1, name: '10 pull-ups' }, 
         { id: 2, name: '10 dips' }, 
@@ -62,14 +62,14 @@
         { id: 5, name: '15 push-ups' }, 
         { id: 6, name: '500m rowing' }
       ]},
-      4: { type: 'sets', cardio: { name: '15 min run', duration: 15 }, exercises: [
-        { id: 1, name: 'Leg curls', sets: 4 },
-        { id: 2, name: 'Overhead press', sets: 4 },
-        { id: 3, name: 'Lat pulldown', sets: 4 },
-        { id: 4, name: 'Incline dumbbell press', sets: 3 },
-        { id: 5, name: 'Cable triceps pushdowns', sets: 3 },
-        { id: 6, name: 'Dumbbell curls', sets: 3 }
-      ]},
+      4: { type: 'sets', warmUp: { name: '1km Run', type: 'speed_time' }, exercises: [
+        { id: 1, name: 'Overhead press', sets: 4 },
+        { id: 2, name: 'Lat pulldown', sets: 4 },
+        { id: 3, name: 'Incline dumbbell press', sets: 3 },
+        { id: 4, name: 'Cable triceps pushdowns', sets: 3 },
+        { id: 5, name: 'Dumbbell curls', sets: 3 },
+        { id: 6, name: 'Leg curls', sets: 4 }
+      ], finisher: { name: '15 min run', type: 'speed_distance' }},
       5: { type: 'other', exercises: [] }
     };
 
@@ -158,7 +158,10 @@
       const [timer, setTimer] = useState(0);
       const [isRunning, setIsRunning] = useState(false);
       const [notes, setNotes] = useState("");
-      const [runDistance, setRunDistance] = useState("");
+      
+      const [warmUpData, setWarmUpData] = useState({ speed: '', time: '' });
+      const [finisherData, setFinisherData] = useState({ speed: '', distance: '' });
+
       const [exercises, setExercises] = useState(() => {
         if (isRounds) return config.exercises.map(ex => ({ ...ex, rounds: 0, weight: ex.trackWeight ? '' : undefined }));
         if (isSets) return config.exercises.map(ex => ({ ...ex, completedSets: Array(ex.sets).fill(null).map(() => ({ weight: '', reps: '', completed: false })) }));
@@ -174,7 +177,15 @@
       const formatTime = (s) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
 
       const completeWorkout = async () => {
-        const w = { date: new Date().toISOString(), time: timer, exercises, notes, day: day === 5 ? 'Other' : `Day ${day}`, runDistance };
+        const w = { 
+            date: new Date().toISOString(), 
+            time: timer, 
+            exercises, 
+            notes, 
+            day: day === 5 ? 'Other' : `Day ${day}`,
+            warmUp: isSets ? warmUpData : null,
+            finisher: isSets ? finisherData : null
+        };
         await window.storage.set(`workout:${Date.now()}`, JSON.stringify(w));
         await onSync();
         onBack();
@@ -195,12 +206,18 @@
           </div>
 
           <div className="space-y-5">
-            {isSets && (
-              <div className="bg-slate-800 p-6 rounded-3xl border border-slate-700 shadow-lg">
-                <h2 className="text-xl font-black mb-4 text-green-500 flex items-center gap-2 uppercase tracking-tight italic">🏃 15 MIN RUN</h2>
-                <div className="flex items-center gap-4 bg-slate-900 p-2 rounded-2xl border border-slate-700">
-                   <input type="number" step="0.1" placeholder="DISTANCE" className="flex-1 bg-transparent p-3 text-2xl font-black text-center focus:ring-2 focus:ring-green-500 outline-none uppercase" value={runDistance} onChange={(e) => setRunDistance(e.target.value)} />
-                   <span className="pr-6 font-black text-slate-600 text-xs">KM</span>
+            {isSets && config.warmUp && (
+              <div className="bg-slate-800 p-6 rounded-3xl border border-slate-700 shadow-lg border-l-4 border-l-green-500">
+                <h2 className="text-xl font-black mb-4 text-green-500 flex items-center gap-2 uppercase tracking-tight italic">🏃 START: 1KM RUN</h2>
+                <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-slate-900 p-2 rounded-2xl border border-slate-700">
+                        <span className="block text-[8px] font-black text-slate-600 pl-2 uppercase">Speed (km/h)</span>
+                        <input type="number" placeholder="0.0" className="w-full bg-transparent p-2 text-xl font-black text-center outline-none" value={warmUpData.speed} onChange={(e) => setWarmUpData({...warmUpData, speed: e.target.value})} />
+                    </div>
+                    <div className="bg-slate-900 p-2 rounded-2xl border border-slate-700">
+                        <span className="block text-[8px] font-black text-slate-600 pl-2 uppercase">Time (min)</span>
+                        <input type="number" placeholder="0:00" className="w-full bg-transparent p-2 text-xl font-black text-center outline-none" value={warmUpData.time} onChange={(e) => setWarmUpData({...warmUpData, time: e.target.value})} />
+                    </div>
                 </div>
               </div>
             )}
@@ -236,8 +253,24 @@
                 )}
               </div>
             ))}
+
+            {isSets && config.finisher && (
+              <div className="bg-slate-800 p-6 rounded-3xl border border-slate-700 shadow-lg border-l-4 border-l-blue-500">
+                <h2 className="text-xl font-black mb-4 text-blue-500 flex items-center gap-2 uppercase tracking-tight italic">🏃 END: 15 MIN RUN</h2>
+                <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-slate-900 p-2 rounded-2xl border border-slate-700">
+                        <span className="block text-[8px] font-black text-slate-600 pl-2 uppercase">Speed (km/h)</span>
+                        <input type="number" placeholder="0.0" className="w-full bg-transparent p-2 text-xl font-black text-center outline-none" value={finisherData.speed} onChange={(e) => setFinisherData({...finisherData, speed: e.target.value})} />
+                    </div>
+                    <div className="bg-slate-900 p-2 rounded-2xl border border-slate-700">
+                        <span className="block text-[8px] font-black text-slate-600 pl-2 uppercase">Distance (km)</span>
+                        <input type="number" step="0.1" placeholder="0.0" className="w-full bg-transparent p-2 text-xl font-black text-center outline-none" value={finisherData.distance} onChange={(e) => setFinisherData({...finisherData, distance: e.target.value})} />
+                    </div>
+                </div>
+              </div>
+            )}
           </div>
-          <button onClick={completeWorkout} disabled={!allCompleted} className={`w-full py-6 rounded-[2rem] font-black text-2xl mt-12 shadow-2xl transition-all active:scale-95 uppercase tracking-tighter shadow-green-900/40 ${allCompleted ? 'bg-green-600 hover:bg-green-500' : 'bg-slate-800 text-slate-600 cursor-not-allowed border border-slate-700'}`}>Complete & Sync ☁️</button>
+          <button onClick={completeWorkout} disabled={!allCompleted} className={`w-full py-6 rounded-[2rem] font-black text-2xl mt-12 shadow-2xl transition-all active:scale-[0.98] uppercase tracking-tighter shadow-green-900/40 ${allCompleted ? 'bg-green-600 hover:bg-green-500' : 'bg-slate-800 text-slate-600 cursor-not-allowed border border-slate-700'}`}>Complete & Sync ☁️</button>
         </div>
       );
     }
@@ -268,7 +301,12 @@
                   <div><h3 className="text-xl font-black text-green-500 tracking-tight uppercase leading-none">{w.day}</h3><p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mt-1">{new Date(w.date).toLocaleDateString()}</p></div>
                   <div className="text-3xl font-mono font-black text-white tabular-nums tracking-tighter">{formatTime(w.time)}</div>
                 </div>
-                {w.runDistance && <div className="text-green-500 text-[10px] font-black uppercase tracking-widest mb-3 inline-block bg-green-500/10 px-2 py-1 rounded">🏃 {w.runDistance} KM</div>}
+                
+                <div className="flex gap-2 flex-wrap mb-3">
+                    {w.warmUp && w.warmUp.speed && <div className="bg-green-500/10 text-green-500 px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border border-green-500/20">🏃 1KM: {w.warmUp.speed}km/h @ {w.warmUp.time}m</div>}
+                    {w.finisher && w.finisher.speed && <div className="bg-blue-500/10 text-blue-500 px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border border-blue-500/20">🏃 15m: {w.finisher.speed}km/h / {w.finisher.distance}km</div>}
+                </div>
+
                 {w.notes && <div className="mt-4 pt-4 border-t border-slate-700/50 text-slate-300 text-sm italic">{w.notes}</div>}
               </div>
             ))}
