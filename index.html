@@ -77,6 +77,7 @@
       const [isLibLoaded, setIsLibLoaded] = useState(false);
       const [isLoggedIn, setIsLoggedIn] = useState(false);
       const [tokenClient, setTokenClient] = useState(null);
+      const [history, setHistory] = useState([]);
       const [selectedDay, setSelectedDay] = useState(null);
       const [showHistory, setShowHistory] = useState(false);
 
@@ -87,6 +88,7 @@
             initGoogle();
           }
         }, 200);
+        return () => clearInterval(timer);
       }, []);
 
       function initGoogle() {
@@ -191,7 +193,8 @@
         onBack();
       };
 
-      const allCompleted = config.type === 'other' ? timer > 0 : isRounds ? exercises.every(ex => ex.rounds === config.rounds) : exercises.every(ex => ex.completedSets.every(s => s.completed));
+      // BUTTON ENABLED LOGIC
+      const canComplete = timer > 0; 
 
       return (
         <div className="min-h-screen p-4 max-w-2xl mx-auto pb-24 bg-slate-900">
@@ -234,7 +237,7 @@
                     {ex.trackWeight && (
                       <div className="flex items-center gap-3 bg-slate-900 p-3 rounded-xl border border-slate-700">
                         <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest pl-2">Weight</span>
-                        <input type="number" className="flex-1 bg-transparent text-xl font-bold text-center outline-none" value={ex.weight} onChange={(e) => {const u = [...exercises]; u[i].weight = e.target.value; setExercises(u);}} />
+                        <input type="number" className="flex-1 bg-transparent text-xl font-bold text-white text-right outline-none" value={ex.weight} onChange={(e) => {const u = [...exercises]; u[i].weight = e.target.value; setExercises(u);}} />
                         <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest pr-2">KG</span>
                       </div>
                     )}
@@ -270,7 +273,8 @@
               </div>
             )}
           </div>
-          <button onClick={completeWorkout} disabled={!allCompleted} className={`w-full py-6 rounded-[2rem] font-black text-2xl mt-12 shadow-2xl transition-all active:scale-[0.98] uppercase tracking-tighter shadow-green-900/40 ${allCompleted ? 'bg-green-600 hover:bg-green-500' : 'bg-slate-800 text-slate-600 cursor-not-allowed border border-slate-700'}`}>Complete & Sync ☁️</button>
+          {/* BUTTON ALWAYS ENABLED IF TIMER > 0 */}
+          <button onClick={completeWorkout} disabled={!canComplete} className={`w-full py-6 rounded-[2rem] font-black text-2xl mt-12 shadow-2xl transition-all active:scale-95 uppercase tracking-tighter shadow-green-900/40 ${canComplete ? 'bg-green-600 hover:bg-green-500' : 'bg-slate-800 text-slate-600 cursor-not-allowed border border-slate-700'}`}>Complete & Sync ☁️</button>
         </div>
       );
     }
