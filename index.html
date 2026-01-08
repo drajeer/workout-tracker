@@ -75,6 +75,16 @@
     const ArrowLeft = ({ className }) => (<svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>);
     const Dumbbell = ({ className }) => (<svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.5 10.5L12 3m0 0l7.5 7.5M12 3v18" /></svg>);
 
+    // Helper for formatting MM:SS
+    const formatTimeInput = (val) => {
+      const clean = val.replace(/\D/g, '');
+      if (clean.length <= 2) return clean;
+      const mins = clean.slice(0, clean.length - 2);
+      const secs = clean.slice(-2);
+      const safeSecs = parseInt(secs) > 59 ? '59' : secs;
+      return `${mins}:${safeSecs}`;
+    };
+
     function App() {
       const [isLibLoaded, setIsLibLoaded] = useState(false);
       const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -135,7 +145,7 @@
       if (!isLibLoaded) return <div className="h-screen flex items-center justify-center font-bold bg-slate-900 uppercase italic">Syncing...</div>;
       if (!isLoggedIn) return (
         <div className="h-screen flex items-center justify-center bg-slate-900 p-6 text-center">
-            <div><h1 className="text-3xl font-black mb-8 italic text-green-500 uppercase">Workout Tracker</h1>
+            <div><h1 className="text-3xl font-black mb-8 italic text-green-500 uppercase leading-none">Workout Tracker</h1>
             <button onClick={() => tokenClient.requestAccessToken()} className="bg-green-600 px-10 py-4 rounded-2xl font-bold uppercase tracking-widest shadow-xl w-full">Login</button></div>
         </div>
       );
@@ -202,9 +212,7 @@
       const completeWorkout = async (isInitialSeed = false) => {
         const w = { date: new Date().toISOString(), time: isInitialSeed ? 0 : timer, exercises, notes, day: dayLabel, warmUp: config.type === 'sets' ? warmUpData : null, finisher: config.type === 'sets' ? finisherData : null, isSeed: isInitialSeed };
         await window.storage.set(`workout:${Date.now()}`, JSON.stringify(w));
-        localStorage.removeItem(workoutId); 
-        await onSync(); 
-        onBack();
+        localStorage.removeItem(workoutId); await onSync(); onBack();
       };
 
       return (
@@ -220,7 +228,7 @@
 
           <div className="space-y-5">
             {config.type === 'sets' && config.warmUp && (
-              <div className="bg-slate-800 p-6 rounded-3xl border border-slate-700 border-l-4 border-l-green-500">
+              <div className="bg-slate-800 p-6 rounded-3xl border border-slate-700 border-l-4 border-l-green-500 shadow-lg">
                 <h2 className="text-xl font-black text-green-500 uppercase tracking-tight italic mb-4">🏃 START: 1KM RUN</h2>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="bg-slate-900 p-2 rounded-2xl border border-slate-700 relative">
@@ -229,7 +237,7 @@
                   </div>
                   <div className="bg-slate-900 p-2 rounded-2xl border border-slate-700 relative">
                     <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[8px] font-black text-slate-600 uppercase tracking-widest">TIME</span>
-                    <input type="number" placeholder={lastWorkout?.warmUp?.time || "0"} className="w-full bg-transparent pl-8 pr-2 py-3 text-xl font-bold text-white text-center outline-none" value={warmUpData.time} onChange={(e) => setWarmUpData({...warmUpData, time: e.target.value})} />
+                    <input type="text" placeholder={lastWorkout?.warmUp?.time || "00:00"} className="w-full bg-transparent pl-10 pr-2 py-3 text-xl font-bold text-white text-center outline-none" value={warmUpData.time} onChange={(e) => setWarmUpData({...warmUpData, time: formatTimeInput(e.target.value)})} />
                   </div>
                 </div>
               </div>
@@ -299,10 +307,7 @@
           
           <div className="mt-12 space-y-4">
               <button onClick={() => completeWorkout(false)} disabled={timer === 0} className="w-full py-6 rounded-[2rem] font-black text-2xl shadow-2xl bg-green-600 hover:bg-green-500 uppercase tracking-tighter shadow-green-900/40 transition-all active:scale-95 disabled:opacity-50">Complete Session ☁️</button>
-              
-              {!lastWorkout && (
-                <button onClick={() => completeWorkout(true)} className="w-full py-4 rounded-2xl font-black text-xs border-2 border-slate-700 text-slate-500 uppercase tracking-widest hover:border-green-500 hover:text-green-500 transition-all">Save as Initial Goals</button>
-              )}
+              <button onClick={() => completeWorkout(true)} className="w-full py-4 rounded-2xl font-black text-xs border-2 border-slate-700 text-slate-500 uppercase tracking-widest hover:border-green-500 hover:text-green-500 transition-all">Save as Initial Goals</button>
           </div>
         </div>
       );
@@ -333,7 +338,7 @@
                   <div className="text-3xl font-mono font-black text-white tabular-nums tracking-tighter">{formatTime(w.time)}</div>
                 </div>
                 <div className="flex gap-2 flex-wrap mb-3">
-                  {w.warmUp?.speed && <div className="bg-green-500/10 text-green-500 px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border border-green-500/20">🏃 1KM: {w.warmUp.speed}km/h @ {w.warmUp.time}m</div>}
+                  {w.warmUp?.speed && <div className="bg-green-500/10 text-green-500 px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border border-green-500/20">🏃 1KM: {w.warmUp.speed}km/h @ {w.warmUp.time}</div>}
                   {w.finisher?.speed && <div className="bg-blue-500/10 text-blue-500 px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border border-blue-500/20">🏃 15m: {w.finisher.speed}km/h / {w.finisher.distance}km</div>}
                 </div>
                 {w.notes && <div className="mt-4 pt-4 border-t border-slate-700/50 text-slate-300 text-sm italic">{w.notes}</div>}
