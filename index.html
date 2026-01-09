@@ -115,9 +115,7 @@
             storage.data = { ...storage.data, ...cloudContent };
             storage.saveLocal();
             setSyncStatus("Cloud Synced ✅");
-          } else {
-            setSyncStatus("Cloud Ready");
-          }
+          } else { setSyncStatus("Cloud Ready"); }
         } catch (e) { setSyncStatus("Connection Failed"); }
         setTimeout(() => setSyncStatus(""), 3000);
       };
@@ -147,6 +145,15 @@
         setTimeout(() => setSyncStatus(""), 3000);
       };
 
+      const deleteWorkout = async (key) => {
+        const pass = prompt("Enter Password (1234) to delete this session:");
+        if (pass === "1234") {
+            delete storage.data[key];
+            storage.saveLocal();
+            await syncToCloud();
+        }
+      };
+
       const deleteAllHistory = async () => {
         const pass = prompt("Enter Password (1234) to wipe ALL history:");
         if (pass === "1234") {
@@ -155,8 +162,6 @@
             await syncToCloud();
             alert("All history cleared.");
             setShowHistory(false);
-        } else {
-            alert("Incorrect password.");
         }
       };
 
@@ -174,14 +179,9 @@
           <div className="h-6 text-center text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">{syncStatus}</div>
           
           {showHistory ? (
-            <HistoryView onBack={() => setShowHistory(false)} onDeleteAll={deleteAllHistory} />
+            <HistoryView onBack={() => setShowHistory(false)} onDeleteAll={deleteAllHistory} onDeleteOne={deleteWorkout} />
           ) : selectedDay !== null ? (
-            <WorkoutScreen 
-                day={selectedDay} 
-                onBack={() => setSelectedDay(null)} 
-                onSync={syncToCloud} 
-                storage={storage} 
-            />
+            <WorkoutScreen day={selectedDay} onBack={() => setSelectedDay(null)} onSync={syncToCloud} storage={storage} />
           ) : (
             <>
               <div className="grid gap-4 mb-6">
@@ -226,7 +226,6 @@
           if (config.type === 'rounds') setExercises(config.exercises.map(ex => ({ ...ex, rounds: 0, weight: ex.trackWeight ? '' : undefined })));
           else setExercises(config.exercises.map(ex => ({ ...ex, completedSets: Array(ex.sets).fill(null).map(() => ({ weight: '', reps: '', completed: false })) })));
         }
-        
         const historyKeys = Object.keys(storage.data).filter(k => k.startsWith('workout:'));
         const items = historyKeys.map(k => JSON.parse(storage.data[k]));
         const match = items.sort((a,b) => new Date(b.date) - new Date(a.date)).find(w => w.day === dayLabel);
@@ -243,10 +242,8 @@
         return () => clearInterval(interval);
       }, [isRunning]);
 
-      const formatTime = (s) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
-      
       const completeWorkout = async (isInitialSeed = false) => {
-        const newWorkout = { date: new Date().toISOString(), time: isInitialSeed ? 0 : timer, exercises, notes, day: dayLabel, warmUp: warmUpData, finisher: config.type === 'sets' ? finisherData : null, isSeed: isInitialSeed };
+        const newWorkout = { date: new Date().toISOString(), time: isInitialSeed ? 0 : timer, exercises, notes, day: dayLabel, warmUp: warmUpData, finisher: finisherData, isSeed: isInitialSeed };
         storage.data[`workout:${Date.now()}`] = JSON.stringify(newWorkout);
         storage.saveLocal();
         localStorage.removeItem(workoutId); 
@@ -256,66 +253,58 @@
 
       return (
         <div className="pb-24">
-          <button onClick={onBack} className="mb-6 flex items-center gap-2 text-slate-500 font-black uppercase text-[10px] tracking-widest">Back</button>
-          <div className="bg-slate-800 rounded-[2.5rem] p-10 mb-8 text-center border border-slate-700 shadow-2xl">
-            <div className="text-7xl font-mono font-black mb-8 tracking-tighter text-white leading-none">
-              {formatTime(timer)}
-            </div>
-            <button onClick={() => setIsRunning(!isRunning)} className={`px-12 py-4 rounded-2xl font-black uppercase tracking-widest shadow-xl ${isRunning ? 'bg-red-500' : 'bg-green-600'}`}>{isRunning ? 'Pause' : 'Start'}</button>
+          <button onClick={onBack} className="mb-6 text-slate-500 font-black uppercase text-[10px]">Back</button>
+          <div className="bg-slate-800 rounded-[2.5rem] p-10 mb-8 text-center border border-slate-700">
+            <div className="text-7xl font-mono font-black mb-8 text-white">{Math.floor(timer/60)}:{(timer%60).toString().padStart(2,'0')}</div>
+            <button onClick={() => setIsRunning(!isRunning)} className={`px-12 py-4 rounded-2xl font-black uppercase tracking-widest ${isRunning ? 'bg-red-500' : 'bg-green-600'}`}>{isRunning ? 'Pause' : 'Start'}</button>
           </div>
-
           <div className="space-y-5">
             {config.warmUp && (
-              <div className="bg-slate-800 p-6 rounded-3xl border border-slate-700 border-l-4 border-l-green-500 shadow-lg">
-                <h2 className="text-xl font-black text-green-500 uppercase tracking-tight italic mb-4 text-center">🏃 1KM RUN</h2>
+              <div className="bg-slate-800 p-6 rounded-3xl border-l-4 border-green-500 shadow-lg">
+                <h2 className="text-xl font-black text-green-500 uppercase italic mb-4 text-center">🏃 1KM RUN</h2>
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-slate-900 p-2 rounded-2xl border border-slate-700 relative">
+                  <div className="bg-slate-900 p-2 rounded-2xl relative border border-slate-700">
                     <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[8px] font-black text-slate-600 uppercase">SPEED</span>
                     <input type="number" placeholder={lastWorkout?.warmUp?.speed || "0.0"} className="w-full bg-transparent pl-10 pr-2 py-3 text-xl font-bold text-white text-center outline-none" value={warmUpData.speed} onChange={(e) => setWarmUpData({...warmUpData, speed: e.target.value})} />
                   </div>
-                  <div className="bg-slate-900 p-2 rounded-2xl border border-slate-700 relative">
+                  <div className="bg-slate-900 p-2 rounded-2xl relative border border-slate-700">
                     <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[8px] font-black text-slate-600 uppercase">TIME</span>
                     <input type="text" placeholder={lastWorkout?.warmUp?.time || "00:00"} className="w-full bg-transparent pl-10 pr-2 py-3 text-xl font-bold text-white text-center outline-none" value={warmUpData.time} onChange={(e) => setWarmUpData({...warmUpData, time: formatTimeInput(e.target.value)})} />
                   </div>
                 </div>
               </div>
             )}
-
             {exercises.map((ex, i) => {
               const lastEx = lastWorkout?.exercises?.find(le => le.id === ex.id);
               return (
-                <div key={ex.id} className="bg-slate-800 p-8 rounded-3xl border border-slate-700 shadow-lg relative">
-                  <h3 className="font-black text-xl text-white uppercase tracking-tight leading-none mb-6">{ex.name}</h3>
+                <div key={ex.id} className="bg-slate-800 p-8 rounded-3xl border border-slate-700 shadow-lg">
+                  <h3 className="font-black text-xl text-white uppercase mb-6 italic">{ex.name}</h3>
                   {config.type === 'rounds' ? (
                     <div className="space-y-4">
-                      <button onClick={() => {const u = [...exercises]; u[i].rounds = u[i].rounds < config.rounds ? u[i].rounds + 1 : 0; setExercises(u);}} className={`w-full py-5 rounded-2xl font-black uppercase tracking-widest ${ex.rounds === config.rounds ? 'bg-green-900/40 text-green-400 border-2 border-green-500/50' : 'bg-slate-700 text-white'}`}>Round {ex.rounds}/{config.rounds}</button>
+                      <button onClick={() => {const u = [...exercises]; u[i].rounds = u[i].rounds < config.rounds ? u[i].rounds + 1 : 0; setExercises(u);}} className={`w-full py-5 rounded-2xl font-black uppercase ${ex.rounds === config.rounds ? 'bg-green-900/40 text-green-400 border-2 border-green-500/50' : 'bg-slate-700'}`}>Round {ex.rounds}/{config.rounds}</button>
                       {ex.trackWeight && (
-                        <div className="bg-slate-900 p-3 rounded-xl border border-slate-700 relative">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-500 uppercase tracking-widest">KG</span>
+                        <div className="bg-slate-900 p-3 rounded-xl relative border border-slate-700">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-500 uppercase">KG</span>
                           <input type="number" placeholder={lastEx?.weight || "0"} className="w-full bg-transparent text-xl font-bold text-center outline-none" value={ex.weight} onChange={(e) => {const u = [...exercises]; u[i].weight = e.target.value; setExercises(u);}} />
                         </div>
                       )}
                     </div>
                   ) : (
                     <div className="space-y-4">
-                      {ex.completedSets?.map((set, sIdx) => {
-                        const isDone = set.weight !== '' && set.reps !== '';
-                        const lastS = lastEx?.completedSets?.[sIdx];
-                        return (
-                          <div key={sIdx} className={`flex items-center gap-3 p-3 rounded-2xl border transition-all duration-300 ${isDone ? 'bg-green-900/10 border-green-500/50' : 'bg-slate-900/50 border-slate-700'}`}>
-                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-[10px] ${isDone ? 'text-green-500' : 'text-slate-700'}`}>S{sIdx+1}</div>
-                            <div className="flex-1 relative">
-                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[8px] font-black text-slate-600 uppercase">KG</span>
-                                <input type="number" placeholder={lastS?.weight || "0"} className="w-full bg-transparent pl-8 pr-2 py-3 text-xl font-bold text-white text-center outline-none" value={set.weight} onChange={(e) => {const u = [...exercises]; u[i].completedSets[sIdx].weight = e.target.value; setExercises(u);}} />
-                            </div>
-                            <span className="text-slate-700 font-black">×</span>
-                            <div className="flex-1 relative">
-                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[8px] font-black text-slate-600 uppercase">REPS</span>
-                                <input type="number" placeholder={lastS?.reps || "0"} className="w-full bg-transparent pl-10 pr-2 py-3 text-xl font-bold text-white text-center outline-none" value={set.reps} onChange={(e) => {const u = [...exercises]; u[i].completedSets[sIdx].reps = e.target.value; setExercises(u);}} />
-                            </div>
+                      {ex.completedSets?.map((set, sIdx) => (
+                        <div key={sIdx} className="flex items-center gap-3 p-3 rounded-2xl bg-slate-900/50 border border-slate-700">
+                          <div className="w-8 text-[10px] font-black text-slate-600">S{sIdx+1}</div>
+                          <div className="flex-1 relative">
+                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[8px] font-black text-slate-600 uppercase">KG</span>
+                            <input type="number" placeholder={lastEx?.completedSets?.[sIdx]?.weight || "0"} className="w-full bg-transparent pl-8 pr-2 py-3 text-xl font-bold text-white text-center outline-none" value={set.weight} onChange={(e) => {const u = [...exercises]; u[i].completedSets[sIdx].weight = e.target.value; setExercises(u);}} />
                           </div>
-                        );
-                      })}
+                          <span className="text-slate-700 font-black">×</span>
+                          <div className="flex-1 relative">
+                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[8px] font-black text-slate-600 uppercase">REPS</span>
+                            <input type="number" placeholder={lastEx?.completedSets?.[sIdx]?.reps || "0"} className="w-full bg-transparent pl-10 pr-2 py-3 text-xl font-bold text-white text-center outline-none" value={set.reps} onChange={(e) => {const u = [...exercises]; u[i].completedSets[sIdx].reps = e.target.value; setExercises(u);}} />
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
@@ -323,42 +312,74 @@
             })}
           </div>
           <div className="mt-12 space-y-4">
-              <button onClick={() => completeWorkout(false)} className="w-full py-6 rounded-[2rem] font-black text-2xl shadow-2xl bg-green-600 hover:bg-green-500 uppercase tracking-tighter shadow-green-900/40 active:scale-95 transition-all">Sync Workout ☁️</button>
-              <button onClick={() => completeWorkout(true)} className="w-full py-4 rounded-2xl font-black text-xs border-2 border-slate-700 text-slate-500 uppercase tracking-widest active:scale-95 transition-all">Set Goals</button>
+            <button onClick={() => completeWorkout(false)} className="w-full py-6 rounded-[2rem] font-black text-2xl bg-green-600 shadow-2xl uppercase">Complete Session</button>
+            <button onClick={() => completeWorkout(true)} className="w-full py-4 rounded-2xl font-black text-xs border-2 border-slate-700 text-slate-500 uppercase">Save Baseline</button>
           </div>
         </div>
       );
     }
 
-    function HistoryView({ onBack, onDeleteAll }) {
+    function HistoryView({ onBack, onDeleteAll, onDeleteOne }) {
+      const [expandedKey, setExpandedKey] = useState(null);
       const historyKeys = Object.keys(storage.data).filter(k => k.startsWith('workout:'));
-      const history = historyKeys.map(k => JSON.parse(storage.data[k])).sort((a,b) => new Date(b.date) - new Date(a.date));
+      const historyItems = historyKeys.map(k => ({ key: k, data: JSON.parse(storage.data[k]) }))
+                                     .sort((a,b) => new Date(b.data.date) - new Date(a.data.date));
+
+      const formatTime = (s) => `${Math.floor(s/60)}:${(s%60).toString().padStart(2,'0')}`;
+
       return (
-        <div className="min-h-screen">
-          <button onClick={onBack} className="mb-8 flex items-center gap-2 text-slate-500 font-black uppercase text-[10px] tracking-widest">Back</button>
+        <div className="min-h-screen pb-10">
+          <button onClick={onBack} className="mb-8 text-slate-500 font-black uppercase text-[10px]">Back</button>
           <div className="flex justify-between items-center mb-8">
             <h1 className="text-3xl font-black text-green-500 uppercase italic">History</h1>
-            <button onClick={onDeleteAll} className="text-red-500 font-black uppercase text-[10px] tracking-widest px-4 py-2 border border-red-500/20 rounded-lg">Wipe History</button>
+            <button onClick={onDeleteAll} className="text-red-500 font-black uppercase text-[10px] px-4 py-2 border border-red-500/20 rounded-lg">Wipe All</button>
           </div>
-          <div className="space-y-4 pb-20">
-            {history.length === 0 ? <p className="text-center py-10 text-slate-600 font-black uppercase tracking-widest text-xs">No history found</p> : history.map((w, idx) => (
-              <div key={idx} className="bg-slate-800 p-6 rounded-[2rem] border border-slate-700 shadow-lg">
-                <div className="flex justify-between items-start">
+          <div className="space-y-4">
+            {historyItems.length === 0 ? <p className="text-center text-slate-600">No sessions logged</p> : historyItems.map(({key, data}) => (
+              <div key={key} className="bg-slate-800 rounded-[2rem] border border-slate-700 shadow-lg overflow-hidden">
+                <div onClick={() => setExpandedKey(expandedKey === key ? null : key)} className="p-6 flex justify-between items-start active:bg-slate-700/50">
                   <div>
-                    <h3 className="text-xl font-black text-green-500 uppercase">{w.day} {w.isSeed && "(GOALS)"}</h3>
-                    <p className="text-[10px] text-slate-500 mt-1 uppercase font-bold">{new Date(w.date).toLocaleDateString()}</p>
+                    <h3 className="text-xl font-black text-green-500 uppercase">{data.day} {data.isSeed && "(GOALS)"}</h3>
+                    <p className="text-[10px] text-slate-500 mt-1 uppercase font-bold">{new Date(data.date).toLocaleDateString()}</p>
                   </div>
-                  <div className="text-3xl font-mono font-black">{Math.floor(w.time/60)}:{(w.time%60).toString().padStart(2,'0')}</div>
+                  <div className="flex flex-col items-end gap-2">
+                    <div className="text-3xl font-mono font-black">{formatTime(data.time)}</div>
+                    <button onClick={(e) => {e.stopPropagation(); onDeleteOne(key);}} className="text-red-900 bg-red-500/10 px-3 py-1 rounded text-[8px] font-black uppercase">Remove</button>
+                  </div>
                 </div>
+                {expandedKey === key && (
+                  <div className="px-6 pb-6 pt-2 border-t border-slate-700/50 space-y-4">
+                    {data.warmUp?.speed && (
+                      <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-700/50">
+                        <span className="text-[10px] font-black text-green-500 uppercase">Warm Up: 1km Run</span>
+                        <div className="text-xl font-black">{data.warmUp.speed} km/h @ {data.warmUp.time}</div>
+                      </div>
+                    )}
+                    {data.exercises.map(ex => (
+                      <div key={ex.id} className="space-y-2">
+                        <div className="text-[10px] font-black text-slate-500 uppercase border-b border-slate-700/50 pb-1">{ex.name}</div>
+                        {ex.rounds !== undefined ? (
+                          <div className="text-lg font-black">{ex.rounds} Rounds {ex.weight && `@ ${ex.weight}kg`}</div>
+                        ) : (
+                          <div className="grid grid-cols-2 gap-2">
+                            {ex.completedSets.map((s, idx) => (
+                              <div key={idx} className="text-sm font-bold bg-slate-900/30 p-2 rounded border border-slate-700/30">
+                                S{idx+1}: {s.weight || 0}kg × {s.reps || 0}r
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
           </div>
         </div>
       );
     }
-
-    const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(<App />);
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
   </script>
 </body>
 </html>
