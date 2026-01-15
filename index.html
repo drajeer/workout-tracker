@@ -222,17 +222,17 @@
                 </div>
               )}
 
-              {/* HORIZONTAL DAY SELECTOR - SMALLER ITEMS */}
-              <div className="flex overflow-x-auto gap-2 pb-6 mb-2 snap-x px-1">
+              {/* HORIZONTAL DAY SELECTOR - EXTRA SMALL ITEMS */}
+              <div className="flex overflow-x-auto gap-1.5 pb-6 mb-2 snap-x px-1 justify-between">
                 {[1, 2, 3, 4, 5].map(day => {
                   const dayLabel = day === 5 ? 'Other' : `Day ${day}`;
                   const theme = THEME_COLORS[dayLabel] || THEME_COLORS['Default'];
                   return (
-                    <button key={day} onClick={() => setSelectedDay(day)} className="flex-none w-20 snap-center bg-slate-800 py-4 rounded-2xl border border-slate-700 flex flex-col items-center justify-center gap-3 active:scale-95 transition-all group">
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm ${theme.bg} ${theme.pixelText} ${theme.glow}`}>
+                    <button key={day} onClick={() => setSelectedDay(day)} className="flex-none w-16 snap-center bg-slate-800 py-3 rounded-2xl border border-slate-700 flex flex-col items-center justify-center gap-2 active:scale-95 transition-all group">
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-xs ${theme.bg} ${theme.pixelText} ${theme.glow}`}>
                           {day === 5 ? '?' : day}
                       </div>
-                      <h2 className={`text-[10px] font-bold uppercase tracking-tight ${theme.text} group-hover:brightness-110 whitespace-nowrap`}>{day === 5 ? 'Other' : `Day ${day}`}</h2>
+                      <h2 className={`text-[9px] font-bold uppercase tracking-tighter ${theme.text} group-hover:brightness-110 whitespace-nowrap`}>{day === 5 ? 'Other' : `Day ${day}`}</h2>
                     </button>
                   );
                 })}
