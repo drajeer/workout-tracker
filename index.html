@@ -90,7 +90,6 @@
       const [isLoggedIn, setIsLoggedIn] = useState(false);
       const [tokenClient, setTokenClient] = useState(null);
       const [selectedDay, setSelectedDay] = useState(null);
-      const [showHistory, setShowHistory] = useState(false);
       const [syncStatus, setSyncStatus] = useState("");
       const [retroDate, setRetroDate] = useState(null); 
 
@@ -120,7 +119,7 @@
       }, []);
 
       const loadCloudData = async (token) => {
-        setSyncStatus("Cloud: Pulling...");
+        setSyncStatus("Pulling...");
         try {
           const res = await fetch('https://www.googleapis.com/drive/v3/files?q=name="workouts.json"', {
             headers: { Authorization: `Bearer ${token}` }
@@ -133,16 +132,16 @@
             });
             storage.data = await fileRes.json();
             storage.saveLocal();
-            setSyncStatus("Cloud Synced ✅");
+            setSyncStatus("Synced ✅");
           }
-        } catch (e) { setSyncStatus("Offline Mode"); }
+        } catch (e) { setSyncStatus("Offline"); }
         setTimeout(() => setSyncStatus(""), 3000);
       };
 
       const syncToCloud = async () => {
         let token = localStorage.getItem('gdrive_token');
         if (!token) { tokenClient.requestAccessToken(); return; }
-        setSyncStatus("Cloud: Saving...");
+        setSyncStatus("Saving...");
         try {
           const listRes = await fetch('https://www.googleapis.com/drive/v3/files?q=name="workouts.json"', {
             headers: { Authorization: `Bearer ${token}` }
@@ -157,9 +156,9 @@
           const syncRes = await fetch(fileId ? `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart` : 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
             method: fileId ? 'PATCH' : 'POST', headers: { Authorization: `Bearer ${token}` }, body: form
           });
-          if (syncRes.ok) setSyncStatus("Cloud Updated ✅");
-          else setSyncStatus("Save Error ❌");
-        } catch (e) { setSyncStatus("Sync Failed"); }
+          if (syncRes.ok) setSyncStatus("Updated ✅");
+          else setSyncStatus("Error ❌");
+        } catch (e) { setSyncStatus("Failed"); }
         setTimeout(() => setSyncStatus(""), 3000);
       };
 
@@ -177,13 +176,12 @@
             storage.saveLocal();
             await syncToCloud();
             alert("All history cleared.");
-            setShowHistory(false);
         }
       };
 
       const startRetroLog = (dateString) => {
         setRetroDate(dateString);
-        setShowHistory(false); 
+        window.scrollTo({ top: 0, behavior: 'smooth' }); // Scroll up to menu
       };
 
       if (!isLoggedIn) return (
@@ -195,16 +193,11 @@
         </div>
       );
 
+      // --- RENDER ---
       return (
         <div className="min-h-screen p-4 max-w-2xl mx-auto bg-slate-900 relative">
-          <div className="flex justify-between items-center mb-6">
-             <div className="text-[10px] font-black uppercase tracking-widest text-slate-500">Total Sessions: <span className="text-white text-lg">{totalSessions}</span></div>
-             <div className="text-[10px] font-black uppercase tracking-widest text-slate-500">{syncStatus}</div>
-          </div>
           
-          {showHistory ? (
-            <HistoryView onBack={() => setShowHistory(false)} onDeleteAll={deleteAllHistory} onDeleteOne={deleteWorkout} onLogPast={startRetroLog} />
-          ) : selectedDay !== null ? (
+          {selectedDay !== null ? (
             <WorkoutScreen 
               day={selectedDay} 
               onBack={() => { setSelectedDay(null); setRetroDate(null); }} 
@@ -214,6 +207,16 @@
             />
           ) : (
             <>
+              {/* HEADER */}
+              <div className="flex justify-between items-center mb-6">
+                 <div className="text-[10px] font-black uppercase tracking-widest text-slate-500">Total Sessions: <span className="text-white text-lg">{totalSessions}</span></div>
+                 <div className="flex items-center gap-3">
+                    <button onClick={() => loadCloudData(localStorage.getItem('gdrive_token'))} className="text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-green-500">{syncStatus || "Cloud Sync ☁️"}</button>
+                    <button onClick={() => { localStorage.clear(); window.location.reload(); }} className="text-[10px] font-black uppercase tracking-widest text-slate-600">Logout</button>
+                 </div>
+              </div>
+
+              {/* RETRO BANNER */}
               {retroDate && (
                 <div className="bg-yellow-500/20 border border-yellow-500 text-yellow-500 p-4 rounded-xl mb-6 text-center animate-pulse">
                   <h3 className="font-black uppercase tracking-widest text-xs">Retroactive Mode</h3>
@@ -222,7 +225,7 @@
                 </div>
               )}
 
-              {/* HORIZONTAL DAY SELECTOR - EXTRA SMALL ITEMS */}
+              {/* HORIZONTAL MENU */}
               <div className="flex overflow-x-auto gap-1.5 pb-6 mb-2 snap-x px-1 justify-between">
                 {[1, 2, 3, 4, 5].map(day => {
                   const dayLabel = day === 5 ? 'Other' : `Day ${day}`;
@@ -238,11 +241,8 @@
                 })}
               </div>
 
-              <button onClick={() => setShowHistory(true)} className="w-full bg-slate-800 py-5 rounded-xl border border-slate-700 font-bold uppercase tracking-widest text-xs mb-8 shadow-lg active:scale-95 transition-all">View History</button>
-              <div className="flex justify-between px-2">
-                <button onClick={() => loadCloudData(localStorage.getItem('gdrive_token'))} className="text-green-600 text-[10px] font-black uppercase tracking-widest">Pull Cloud ☁️</button>
-                <button onClick={() => { localStorage.clear(); window.location.reload(); }} className="text-slate-600 text-[10px] font-black uppercase tracking-widest">Logout</button>
-              </div>
+              {/* EMBEDDED HISTORY CALENDAR */}
+              <HistoryView onDeleteAll={deleteAllHistory} onDeleteOne={deleteWorkout} onLogPast={startRetroLog} />
             </>
           )}
         </div>
@@ -424,8 +424,8 @@
       );
     }
 
-    // --- PIXEL HISTORY ---
-    function HistoryView({ onBack, onDeleteAll, onDeleteOne, onLogPast }) {
+    // --- EMBEDDED CALENDAR WIDGET ---
+    function HistoryView({ onDeleteAll, onDeleteOne, onLogPast }) {
       const [viewDate, setViewDate] = useState(new Date());
       const [selectedDate, setSelectedDate] = useState(null);
       
@@ -449,7 +449,6 @@
       const blanks = Array(firstDay).fill(null);
       const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
 
-      // Calculate sessions in current month
       const monthlyCount = days.reduce((acc, day) => {
         const k = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
         return acc + (historyMap[k] ? 1 : 0);
@@ -467,23 +466,22 @@
       const formatTime = (s) => `${Math.floor(s/60)}:${(s%60).toString().padStart(2,'0')}`;
 
       return (
-        <div className="min-h-screen pb-10">
-          <div className="flex justify-between items-center mb-6">
-            <button onClick={onBack} className="text-slate-500 font-black uppercase text-[10px] tracking-widest hover:text-white">← Back</button>
-            <button onClick={onDeleteAll} className="text-red-900 bg-red-500/10 px-3 py-1 rounded text-[8px] font-black uppercase tracking-widest">Wipe History</button>
-          </div>
-
+        <div className="pb-10 pt-4 border-t border-slate-800">
+          
+          {/* CALENDAR HEADER */}
           <div className="flex justify-between items-end mb-6">
              <div className="flex flex-col">
                 <div className="text-xl font-black text-green-500 tracking-widest leading-none">{monthNames[month]} <span className="text-slate-600">{year}</span></div>
                 <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest mt-1">Sessions: <span className="text-white">{monthlyCount}</span></div>
              </div>
-             <div className="flex gap-2">
+             <div className="flex gap-2 items-center">
+               <button onClick={onDeleteAll} className="text-red-900 bg-red-500/10 px-2 py-2 rounded-lg text-[8px] font-black uppercase tracking-widest mr-2 hover:bg-red-500/20">Wipe</button>
                <button onClick={() => changeMonth(-1)} className="p-2 bg-slate-800 rounded-lg text-slate-400 hover:text-white font-black">{'<'}</button>
                <button onClick={() => changeMonth(1)} className="p-2 bg-slate-800 rounded-lg text-slate-400 hover:text-white font-black">{'>'}</button>
              </div>
           </div>
 
+          {/* CALENDAR GRID */}
           <div className="bg-slate-800 p-4 rounded-2xl border border-slate-700 shadow-2xl mb-8">
             <div className="grid grid-cols-7 gap-1 mb-2 text-center">
               {['S','M','T','W','T','F','S'].map((d,i) => <div key={i} className="text-[10px] font-bold text-slate-600">{d}</div>)}
@@ -510,20 +508,20 @@
             </div>
           </div>
 
-          <div className="space-y-4 animate-in slide-in-from-bottom-4 duration-300">
-             
+          {/* DETAILS SECTION */}
+          <div className="space-y-4">
              {selectedDate && (
                  <button onClick={() => onLogPast(selectedDate)} className="w-full py-4 mb-4 rounded-2xl border-2 border-dashed border-slate-600 text-slate-500 font-black uppercase text-xs tracking-widest hover:border-yellow-500 hover:text-yellow-500 transition-colors">
                     ➕ Log Workout for {selectedDate}
                  </button>
              )}
 
-             {selectedWorkouts.length === 0 && !selectedDate && <div className="text-center text-slate-600 font-bold text-xs uppercase tracking-widest mt-12">Select a date to log or view details</div>}
+             {selectedWorkouts.length === 0 && !selectedDate && <div className="text-center text-slate-600 font-bold text-xs uppercase tracking-widest mt-4">Select a pixel for details</div>}
              
              {selectedWorkouts.map(({key, data}) => {
                 const cardTheme = getTheme(data.day);
                 return (
-                  <div key={key} className="bg-slate-800 rounded-[2rem] border border-slate-700 shadow-lg overflow-hidden relative">
+                  <div key={key} className="bg-slate-800 rounded-[2rem] border border-slate-700 shadow-lg overflow-hidden relative animate-in slide-in-from-top-2 duration-300">
                     <div className="p-6">
                       <div className="flex justify-between items-start mb-4">
                         <div>
@@ -545,7 +543,6 @@
                           </div>
                         ))}
                       </div>
-                      {/* FINISHER DISPLAY IN HISTORY */}
                       {data.finisher?.speed && (
                          <div className="mt-2 flex justify-between items-center bg-slate-900/30 p-2 rounded text-[10px] uppercase font-bold text-slate-400">
                             <span>Finisher (Run)</span>
