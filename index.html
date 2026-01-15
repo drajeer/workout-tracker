@@ -14,7 +14,7 @@
     html { -webkit-text-size-adjust: 100%; }
     body { overscroll-behavior-y: contain; background-color: #0f172a; }
     input::placeholder { color: rgba(100, 116, 139, 0.6); font-weight: 800; }
-    ::-webkit-scrollbar { width: 0px; background: transparent; }
+    ::-webkit-scrollbar { width: 0px; height: 0px; background: transparent; }
   </style>
 </head>
 <body class="bg-slate-900 text-white font-sans selection:bg-green-500/30">
@@ -34,15 +34,13 @@
 
     // --- DATA ---
     const workoutData = {
-      // Day 1: Rowing moved to bottom
       1: { type: 'rounds', rounds: 3, warmUp: { name: '1km Run' }, exercises: [
           { id: 1, name: '20m dumbbell lunges', trackWeight: true }, 
           { id: 2, name: '20m sled push', trackWeight: true }, 
           { id: 4, name: '15 goblet squats', trackWeight: true }, 
           { id: 5, name: '15 box jumps' },
-          { id: 3, name: '500m rowing' } // Moved to bottom
+          { id: 3, name: '500m rowing' } 
       ]},
-      // Day 2: Added Finisher config
       2: { type: 'sets', warmUp: { name: '1km Run' }, exercises: [
           { id: 1, name: 'Leg press', sets: 4 }, 
           { id: 2, name: 'Bench press', sets: 4 }, 
@@ -50,16 +48,14 @@
           { id: 4, name: 'Bulgarian split squats', sets: 3 }, 
           { id: 5, name: 'Face pulls', sets: 3 }
       ], finisher: { name: '15 min run' }},
-      // Day 3: Rowing ensures at bottom
       3: { type: 'rounds', rounds: 3, warmUp: { name: '1km Run' }, exercises: [
           { id: 1, name: '10 pull-ups' }, 
           { id: 2, name: '10 dips' }, 
           { id: 3, name: '10 barbell thrusters', trackWeight: true }, 
           { id: 4, name: '10m sled pull', trackWeight: true }, 
           { id: 5, name: '15 push-ups' }, 
-          { id: 6, name: '500m rowing' } // At bottom
+          { id: 6, name: '500m rowing' } 
       ]},
-      // Day 4: Added Finisher config
       4: { type: 'sets', warmUp: { name: '1km Run' }, exercises: [
           { id: 1, name: 'Leg curls', sets: 4 }, 
           { id: 2, name: 'Overhead press', sets: 4 }, 
@@ -202,7 +198,7 @@
 
       return (
         <div className="min-h-screen p-4 max-w-2xl mx-auto bg-slate-900 relative">
-          <div className="flex justify-between items-center mb-2">
+          <div className="flex justify-between items-center mb-6">
              <div className="text-[10px] font-black uppercase tracking-widest text-slate-500">Total Sessions: <span className="text-white text-lg">{totalSessions}</span></div>
              <div className="text-[10px] font-black uppercase tracking-widest text-slate-500">{syncStatus}</div>
           </div>
@@ -227,20 +223,22 @@
                 </div>
               )}
 
-              <div className="grid gap-4 mb-6">
+              {/* HORIZONTAL DAY SELECTOR */}
+              <div className="flex overflow-x-auto gap-4 pb-6 mb-2 snap-x px-1">
                 {[1, 2, 3, 4, 5].map(day => {
                   const dayLabel = day === 5 ? 'Other' : `Day ${day}`;
                   const theme = THEME_COLORS[dayLabel] || THEME_COLORS['Default'];
                   return (
-                    <button key={day} onClick={() => setSelectedDay(day)} className="bg-slate-800 p-8 rounded-2xl border border-slate-700 text-left flex items-center gap-4 active:scale-95 transition-all group">
-                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-black ${theme.bg} ${theme.pixelText} ${theme.glow}`}>
+                    <button key={day} onClick={() => setSelectedDay(day)} className="flex-none w-32 snap-center bg-slate-800 p-6 rounded-3xl border border-slate-700 flex flex-col items-center justify-center gap-4 active:scale-95 transition-all group">
+                      <div className={`w-14 h-14 rounded-2xl flex items-center justify-center font-black text-xl ${theme.bg} ${theme.pixelText} ${theme.glow}`}>
                           {day === 5 ? '?' : day}
                       </div>
-                      <h2 className={`text-xl font-bold uppercase tracking-tight ${theme.text} group-hover:brightness-110`}>{dayLabel}</h2>
+                      <h2 className={`text-sm font-bold uppercase tracking-tight ${theme.text} group-hover:brightness-110 whitespace-nowrap`}>{day === 5 ? 'Other' : `Day ${day}`}</h2>
                     </button>
                   );
                 })}
               </div>
+
               <button onClick={() => setShowHistory(true)} className="w-full bg-slate-800 py-5 rounded-xl border border-slate-700 font-bold uppercase tracking-widest text-xs mb-8 shadow-lg active:scale-95 transition-all">View History</button>
               <div className="flex justify-between px-2">
                 <button onClick={() => loadCloudData(localStorage.getItem('gdrive_token'))} className="text-green-600 text-[10px] font-black uppercase tracking-widest">Pull Cloud ☁️</button>
