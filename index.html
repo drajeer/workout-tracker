@@ -34,10 +34,40 @@
 
     // --- DATA ---
     const workoutData = {
-      1: { type: 'rounds', rounds: 3, warmUp: { name: '1km Run' }, exercises: [{ id: 1, name: '20m dumbbell lunges', trackWeight: true }, { id: 2, name: '20m sled push', trackWeight: true }, { id: 3, name: '500m rowing' }, { id: 4, name: '15 goblet squats', trackWeight: true }, { id: 5, name: '15 box jumps' }]},
-      2: { type: 'sets', warmUp: { name: '1km Run' }, exercises: [{ id: 1, name: 'Leg press', sets: 4 }, { id: 2, name: 'Bench press', sets: 4 }, { id: 3, name: 'Cable row', sets: 4 }, { id: 4, name: 'Bulgarian split squats', sets: 3 }, { id: 5, name: 'Face pulls', sets: 3 }], finisher: { name: '15 min run' }},
-      3: { type: 'rounds', rounds: 3, warmUp: { name: '1km Run' }, exercises: [{ id: 1, name: '10 pull-ups' }, { id: 2, name: '10 dips' }, { id: 3, name: '10 barbell thrusters', trackWeight: true }, { id: 4, name: '10m sled pull', trackWeight: true }, { id: 5, name: '15 push-ups' }, { id: 6, name: '500m rowing' }]},
-      4: { type: 'sets', warmUp: { name: '1km Run' }, exercises: [{ id: 1, name: 'Leg curls', sets: 4 }, { id: 2, name: 'Overhead press', sets: 4 }, { id: 3, name: 'Lat pulldown', sets: 4 }, { id: 4, name: 'Incline dumbbell press', sets: 3 }, { id: 5, name: 'Cable triceps pushdowns', sets: 3 }, { id: 6, name: 'Dumbbell curls', sets: 3 }], finisher: { name: '15 min run' }},
+      // Day 1: Rowing moved to bottom
+      1: { type: 'rounds', rounds: 3, warmUp: { name: '1km Run' }, exercises: [
+          { id: 1, name: '20m dumbbell lunges', trackWeight: true }, 
+          { id: 2, name: '20m sled push', trackWeight: true }, 
+          { id: 4, name: '15 goblet squats', trackWeight: true }, 
+          { id: 5, name: '15 box jumps' },
+          { id: 3, name: '500m rowing' } // Moved to bottom
+      ]},
+      // Day 2: Added Finisher config
+      2: { type: 'sets', warmUp: { name: '1km Run' }, exercises: [
+          { id: 1, name: 'Leg press', sets: 4 }, 
+          { id: 2, name: 'Bench press', sets: 4 }, 
+          { id: 3, name: 'Cable row', sets: 4 }, 
+          { id: 4, name: 'Bulgarian split squats', sets: 3 }, 
+          { id: 5, name: 'Face pulls', sets: 3 }
+      ], finisher: { name: '15 min run' }},
+      // Day 3: Rowing ensures at bottom
+      3: { type: 'rounds', rounds: 3, warmUp: { name: '1km Run' }, exercises: [
+          { id: 1, name: '10 pull-ups' }, 
+          { id: 2, name: '10 dips' }, 
+          { id: 3, name: '10 barbell thrusters', trackWeight: true }, 
+          { id: 4, name: '10m sled pull', trackWeight: true }, 
+          { id: 5, name: '15 push-ups' }, 
+          { id: 6, name: '500m rowing' } // At bottom
+      ]},
+      // Day 4: Added Finisher config
+      4: { type: 'sets', warmUp: { name: '1km Run' }, exercises: [
+          { id: 1, name: 'Leg curls', sets: 4 }, 
+          { id: 2, name: 'Overhead press', sets: 4 }, 
+          { id: 3, name: 'Lat pulldown', sets: 4 }, 
+          { id: 4, name: 'Incline dumbbell press', sets: 3 }, 
+          { id: 5, name: 'Cable triceps pushdowns', sets: 3 }, 
+          { id: 6, name: 'Dumbbell curls', sets: 3 }
+      ], finisher: { name: '15 min run' }},
       5: { type: 'other', exercises: [] }
     };
 
@@ -66,9 +96,12 @@
       const [selectedDay, setSelectedDay] = useState(null);
       const [showHistory, setShowHistory] = useState(false);
       const [syncStatus, setSyncStatus] = useState("");
-      
-      // NEW: State for retroactive logging
-      const [retroDate, setRetroDate] = useState(null); // 'YYYY-MM-DD'
+      const [retroDate, setRetroDate] = useState(null); 
+
+      // Calculate Total Sessions
+      const totalSessions = useMemo(() => {
+        return Object.keys(storage.data).filter(k => k.startsWith('workout:')).length;
+      }, [storage.data]);
 
       useEffect(() => {
         const init = () => {
@@ -153,10 +186,9 @@
         }
       };
 
-      // Handle retro-log trigger from HistoryView
       const startRetroLog = (dateString) => {
         setRetroDate(dateString);
-        setShowHistory(false); // Go back to main menu to pick routine
+        setShowHistory(false); 
       };
 
       if (!isLoggedIn) return (
@@ -170,7 +202,10 @@
 
       return (
         <div className="min-h-screen p-4 max-w-2xl mx-auto bg-slate-900 relative">
-          <div className="h-6 text-center text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">{syncStatus}</div>
+          <div className="flex justify-between items-center mb-2">
+             <div className="text-[10px] font-black uppercase tracking-widest text-slate-500">Total Sessions: <span className="text-white text-lg">{totalSessions}</span></div>
+             <div className="text-[10px] font-black uppercase tracking-widest text-slate-500">{syncStatus}</div>
+          </div>
           
           {showHistory ? (
             <HistoryView onBack={() => setShowHistory(false)} onDeleteAll={deleteAllHistory} onDeleteOne={deleteWorkout} onLogPast={startRetroLog} />
@@ -180,11 +215,10 @@
               onBack={() => { setSelectedDay(null); setRetroDate(null); }} 
               onSync={syncToCloud} 
               storage={storage} 
-              retroDate={retroDate} // Pass retro date to recorder
+              retroDate={retroDate} 
             />
           ) : (
             <>
-              {/* Retro Mode Banner */}
               {retroDate && (
                 <div className="bg-yellow-500/20 border border-yellow-500 text-yellow-500 p-4 rounded-xl mb-6 text-center animate-pulse">
                   <h3 className="font-black uppercase tracking-widest text-xs">Retroactive Mode</h3>
@@ -225,9 +259,9 @@
       const workoutId = `workout:current:${dayLabel}`;
       const theme = THEME_COLORS[dayLabel] || THEME_COLORS['Default'];
 
-      const [timer, setTimer] = useState(0); // Used for duration in Retro Mode
+      const [timer, setTimer] = useState(0); 
       const [isRunning, setIsRunning] = useState(false);
-      const [manualDuration, setManualDuration] = useState("60"); // Default 60 mins for retro
+      const [manualDuration, setManualDuration] = useState("60"); 
       const [notes, setNotes] = useState("");
       const [warmUpData, setWarmUpData] = useState({ speed: '', time: '' });
       const [finisherData, setFinisherData] = useState({ speed: '', distance: '' });
@@ -235,7 +269,6 @@
       const [exercises, setExercises] = useState([]);
 
       useEffect(() => {
-        // Don't load "current" localstorage cache if we are in retro mode, we want a fresh sheet
         const saved = !retroDate ? localStorage.getItem(workoutId) : null;
         if (saved) {
           const d = JSON.parse(saved);
@@ -266,11 +299,10 @@
         let finalDate = new Date().toISOString();
         let finalTime = timer;
 
-        // RETRO LOGIC: Construct date from retroDate string + current time (to avoid timezone shifting)
         if (retroDate) {
           const now = new Date();
           finalDate = `${retroDate}T${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:00.000Z`;
-          finalTime = parseInt(manualDuration) * 60; // Convert mins to seconds
+          finalTime = parseInt(manualDuration) * 60; 
         } else if (isInitialSeed) {
           finalTime = 0;
         }
@@ -292,18 +324,15 @@
         <div className="pb-24">
           <button onClick={onBack} className="mb-6 flex items-center gap-2 text-slate-500 font-black uppercase text-[10px] tracking-widest">Back</button>
           
-          {/* HEADER / TIMER */}
           <div className={`bg-slate-800 rounded-[2.5rem] p-10 mb-8 text-center border shadow-2xl relative ${retroDate ? 'border-yellow-500/50' : 'border-slate-700'}`}>
             <h2 className={`absolute top-6 left-0 w-full text-center text-xs font-black uppercase tracking-[0.2em] ${theme.text}`}>{dayLabel} {retroDate && `(${retroDate})`}</h2>
             
             {retroDate ? (
-              // MANUAL TIME INPUT FOR RETRO
               <div className="mt-8 mb-4">
                  <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Duration (Minutes)</div>
                  <input type="number" value={manualDuration} onChange={e => setManualDuration(e.target.value)} className="bg-slate-900 text-5xl font-mono font-black text-white text-center w-32 rounded-xl py-2 outline-none border border-slate-700 focus:border-yellow-500" />
               </div>
             ) : (
-              // LIVE TIMER
               <>
                 <div className="text-7xl font-mono font-black mb-8 tracking-tighter text-white leading-none mt-6">
                   {Math.floor(timer/60)}:{(timer%60).toString().padStart(2,'0')}
@@ -314,6 +343,7 @@
           </div>
 
           <div className="space-y-5">
+            {/* WARM UP */}
             {config.warmUp && (
               <div className={`bg-slate-800 p-6 rounded-3xl border-l-4 shadow-lg border border-slate-700/50`} style={{ borderColor: theme.bg.replace('bg-', 'var(--tw-colors-') }}>
                 <h2 className={`text-xl font-black ${theme.text} uppercase italic mb-4 text-center`}>🏃 1KM RUN</h2>
@@ -330,6 +360,7 @@
               </div>
             )}
 
+            {/* EXERCISES */}
             {exercises.map((ex, i) => {
               const lastEx = lastWorkout?.exercises?.find(le => le.id === ex.id);
               return (
@@ -370,6 +401,23 @@
                 </div>
               );
             })}
+
+            {/* FINISHER (Days 2 & 4) */}
+            {config.finisher && (
+              <div className={`bg-slate-800 p-6 rounded-3xl border-l-4 shadow-lg border border-slate-700/50`} style={{ borderColor: theme.bg.replace('bg-', 'var(--tw-colors-') }}>
+                <h2 className={`text-xl font-black ${theme.text} uppercase italic mb-4 text-center`}>🏁 15 MIN RUN</h2>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-slate-900 p-2 rounded-2xl border border-slate-700 relative">
+                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[8px] font-black text-slate-600 uppercase">SPEED</span>
+                    <input type="number" placeholder={lastWorkout?.finisher?.speed || "0.0"} className="w-full bg-transparent pl-10 pr-2 py-3 text-xl font-bold text-white text-center outline-none" value={finisherData.speed} onChange={(e) => setFinisherData({...finisherData, speed: e.target.value})} />
+                  </div>
+                  <div className="bg-slate-900 p-2 rounded-2xl border border-slate-700 relative">
+                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[8px] font-black text-slate-600 uppercase">DIST (km)</span>
+                    <input type="number" placeholder={lastWorkout?.finisher?.distance || "0.0"} className="w-full bg-transparent pl-14 pr-2 py-3 text-xl font-bold text-white text-center outline-none" value={finisherData.distance} onChange={(e) => setFinisherData({...finisherData, distance: e.target.value})} />
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
           
           <div className="mt-12 space-y-4">
@@ -404,6 +452,12 @@
       const blanks = Array(firstDay).fill(null);
       const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
 
+      // Calculate sessions in current month
+      const monthlyCount = days.reduce((acc, day) => {
+        const k = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+        return acc + (historyMap[k] ? 1 : 0);
+      }, 0);
+
       const changeMonth = (offset) => {
         setViewDate(new Date(year, month + offset, 1));
         setSelectedDate(null);
@@ -422,12 +476,15 @@
             <button onClick={onDeleteAll} className="text-red-900 bg-red-500/10 px-3 py-1 rounded text-[8px] font-black uppercase tracking-widest">Wipe History</button>
           </div>
 
-          <h1 className="text-3xl font-black text-white uppercase italic mb-6">Pixel Log</h1>
-
-          <div className="flex justify-between items-center mb-4 px-2">
-            <button onClick={() => changeMonth(-1)} className="p-2 text-slate-400 hover:text-white font-black">{'<'}</button>
-            <div className="text-xl font-black text-green-500 tracking-widest">{monthNames[month]} <span className="text-slate-600">{year}</span></div>
-            <button onClick={() => changeMonth(1)} className="p-2 text-slate-400 hover:text-white font-black">{'>'}</button>
+          <div className="flex justify-between items-end mb-6">
+             <div className="flex flex-col">
+                <div className="text-xl font-black text-green-500 tracking-widest leading-none">{monthNames[month]} <span className="text-slate-600">{year}</span></div>
+                <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest mt-1">Sessions: <span className="text-white">{monthlyCount}</span></div>
+             </div>
+             <div className="flex gap-2">
+               <button onClick={() => changeMonth(-1)} className="p-2 bg-slate-800 rounded-lg text-slate-400 hover:text-white font-black">{'<'}</button>
+               <button onClick={() => changeMonth(1)} className="p-2 bg-slate-800 rounded-lg text-slate-400 hover:text-white font-black">{'>'}</button>
+             </div>
           </div>
 
           <div className="bg-slate-800 p-4 rounded-2xl border border-slate-700 shadow-2xl mb-8">
@@ -458,7 +515,6 @@
 
           <div className="space-y-4 animate-in slide-in-from-bottom-4 duration-300">
              
-             {/* ADD PAST WORKOUT BUTTON */}
              {selectedDate && (
                  <button onClick={() => onLogPast(selectedDate)} className="w-full py-4 mb-4 rounded-2xl border-2 border-dashed border-slate-600 text-slate-500 font-black uppercase text-xs tracking-widest hover:border-yellow-500 hover:text-yellow-500 transition-colors">
                     ➕ Log Workout for {selectedDate}
@@ -492,6 +548,13 @@
                           </div>
                         ))}
                       </div>
+                      {/* FINISHER DISPLAY IN HISTORY */}
+                      {data.finisher?.speed && (
+                         <div className="mt-2 flex justify-between items-center bg-slate-900/30 p-2 rounded text-[10px] uppercase font-bold text-slate-400">
+                            <span>Finisher (Run)</span>
+                            <span>{data.finisher.speed}km/h - {data.finisher.distance}km</span>
+                         </div>
+                      )}
                       {data.notes && <div className="mt-4 text-xs text-slate-400 italic">"{data.notes}"</div>}
                     </div>
                   </div>
