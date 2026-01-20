@@ -75,7 +75,7 @@
       const [isLoggedIn, setIsLoggedIn] = useState(false);
       const [tokenClient, setTokenClient] = useState(null);
       const [isActive, setIsActive] = useState(false);
-      const [syncStatus, setSyncStatus] = useState("");
+      const [syncStatus, setSyncStatus] = useState("OFFLINE");
       const [trigger, setTrigger] = useState(0);
 
       const totalSessions = useMemo(() => {
@@ -85,7 +85,7 @@
       const nextDayLabel = (totalSessions + 1).toString().padStart(2, '0');
       const currentRotationId = (totalSessions % 4) + 1;
 
-      // GOOGLE AUTH INIT
+      // INITIALIZE GOOGLE API
       useEffect(() => {
         const init = () => {
           const client = google.accounts.oauth2.initTokenClient({
@@ -99,9 +99,11 @@
             }
           });
           setTokenClient(client);
-          if (localStorage.getItem('gdrive_token')) {
+          
+          const existingToken = localStorage.getItem('gdrive_token');
+          if (existingToken) {
             setIsLoggedIn(true);
-            loadCloudData(localStorage.getItem('gdrive_token'));
+            loadCloudData(existingToken);
           }
         };
         const script = document.createElement('script');
@@ -121,19 +123,26 @@
             const fileRes = await fetch(`https://www.googleapis.com/drive/v3/files/${data.files[0].id}?alt=media`, {
               headers: { Authorization: `Bearer ${token}` }
             });
-            storage.data = await fileRes.json();
+            const cloudData = await fileRes.json();
+            storage.data = cloudData;
             storage.saveLocal();
             setTrigger(t => t + 1);
             setSyncStatus("SYNCED");
+          } else {
+            setSyncStatus("NEW_USER");
           }
-        } catch (e) { setSyncStatus("OFFLINE"); }
-        setTimeout(() => setSyncStatus(""), 3000);
+        } catch (e) { 
+          setSyncStatus("ERROR"); 
+          localStorage.removeItem('gdrive_token');
+          setIsLoggedIn(false);
+        }
+        setTimeout(() => setSyncStatus("READY"), 3000);
       };
 
       const syncToCloud = async () => {
         let token = localStorage.getItem('gdrive_token');
         if (!token) return;
-        setSyncStatus("SAVING...");
+        setSyncStatus("STAMPING...");
         try {
           const listRes = await fetch('https://www.googleapis.com/drive/v3/files?q=name="workouts.json"', {
             headers: { Authorization: `Bearer ${token}` }
@@ -144,19 +153,24 @@
           const form = new FormData();
           form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
           form.append('file', new Blob([JSON.stringify(storage.data)], { type: 'application/json' }));
+          
           await fetch(fileId ? `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart` : 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
             method: fileId ? 'PATCH' : 'POST', headers: { Authorization: `Bearer ${token}` }, body: form
           });
           setSyncStatus("STAMPED ✅");
-        } catch (e) { setSyncStatus("ERROR"); }
-        setTimeout(() => setSyncStatus(""), 3000);
+        } catch (e) { setSyncStatus("SAVE_ERROR"); }
+        setTimeout(() => setSyncStatus("READY"), 3000);
       };
 
       if (!isLoggedIn) return (
-        <div className="h-screen flex items-center justify-center bg-white text-center p-6">
-          <button onClick={() => tokenClient.requestAccessToken()} className="ereader-btn-outline px-12 py-5 text-xl">
-            INITIALIZE CLOUD
-          </button>
+        <div className="h-screen flex items-center justify-center bg-white text-center p-6 border-8 border-double border-black">
+          <div className="flex flex-col items-center gap-8">
+            <h1 className="text-4xl font-black uppercase italic tracking-tighter">Initialize<br/>Cloud</h1>
+            <button onClick={() => tokenClient.requestAccessToken()} className="ereader-btn-outline px-12 py-10 text-2xl">
+              START AUTH
+            </button>
+            <p className="text-[10px] font-bold uppercase opacity-30">Connect Google Drive to load session data</p>
+          </div>
         </div>
       );
 
@@ -166,7 +180,7 @@
             <div className="flex-1 flex flex-col">
               <div className="border-b-2 border-black pb-2 mb-10 flex justify-between items-end">
                 <h1 className="text-2xl font-black uppercase">TRACKER</h1>
-                <span className="text-[10px] font-black opacity-30 uppercase">{syncStatus || `SESS: ${currentRotationId}`}</span>
+                <span className="text-[10px] font-black opacity-30 uppercase tracking-widest">{syncStatus}</span>
               </div>
               
               <div className="flex-1 flex flex-col justify-center items-center">
@@ -181,10 +195,10 @@
               <WorkoutCalendar trigger={trigger} storage={storage} />
               
               <button 
-                onClick={() => { if(confirm("Clear?")) { localStorage.clear(); window.location.reload(); } }} 
+                onClick={() => { if(confirm("Clear local cache and log out?")) { localStorage.clear(); window.location.reload(); } }} 
                 className="mt-6 text-[9px] font-black uppercase opacity-20 self-center"
               >
-                Reset Cache
+                Reset System
               </button>
             </div>
           ) : (
@@ -223,7 +237,7 @@
         days.push(
           <div key={d} className="calendar-day">
             {earnedIcon ? (
-              <img src={`file:///Users/ashajeer/Library/CloudStorage/GoogleDrive-mrajeer@gmail.com/My%20Drive/WorkoutApp/DAY%20ICONS/DAY%2001@3x.png`} className="day-mini-icon" />
+              <img src={`file:///Users/ashajeer/Library/CloudStorage/GoogleDrive-mrajeer@gmail.com/My%20Drive/WorkoutApp/DAY%2001@3x.png`} className="day-mini-icon" />
             ) : ( <span className="opacity-10">{d}</span> )}
           </div>
         );
