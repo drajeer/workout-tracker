@@ -185,8 +185,10 @@
             <div className="flex-1 flex flex-col">
               <h1 className="text-xl font-black uppercase border-b-2 border-black pb-2 mb-10 tracking-widest text-center italic">Tracker Cloud</h1>
               <div className="flex-1 flex flex-col justify-center items-center">
-                <button onClick={() => setIsActive(true)} className="ereader-btn-outline w-full py-16 text-4xl uppercase">START: DAY {(totalSessions + 1).toString().padStart(2, '0')}</button>
-                <p className="mt-4 text-[10px] font-black uppercase opacity-30 tracking-widest">Rotation Session {currentRotationId}</p>
+                <button onClick={() => setIsActive(true)} className="ereader-btn-outline w-full py-16 text-4xl uppercase flex flex-col items-center justify-center gap-3">
+                  <span>START: DAY {(totalSessions + 1).toString().padStart(2, '0')}</span>
+                  <span className="text-[10px] font-black uppercase opacity-30 tracking-widest">SESSION {currentRotationId}</span>
+                </button>
               </div>
               <WorkoutCalendar storage={storage} trigger={trigger} />
               <button onClick={() => { if(confirm("Logout?")) { setIsLoggedIn(false); } }} className="mt-8 text-[9px] font-black uppercase opacity-20 hover:opacity-100 transition-opacity self-center">Logout</button>
