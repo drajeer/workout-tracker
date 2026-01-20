@@ -4,26 +4,32 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <link rel="icon" href="data:,">
-  <title>Workout Tracker Cloud</title>
+  <title>TRACKER OS - CLOUD E-READER</title>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script async defer src="https://accounts.google.com/gsi/client"></script>
   <style>
-    html { -webkit-text-size-adjust: 100%; }
-    body { overscroll-behavior-y: contain; background-color: #0f172a; }
-    input::placeholder { color: rgba(100, 116, 139, 0.6); font-weight: 800; }
-    ::-webkit-scrollbar { width: 0px; height: 0px; background: transparent; }
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+    :root { --bg: #ffffff; --screen: #f2f2f2; --mid: #e0e0e0; --deep: #000000; font-family: 'Inter', sans-serif; }
+    body { background-color: var(--bg); color: var(--deep); overscroll-behavior-y: contain; }
+    .ereader-panel { background-color: var(--screen); border: 1px solid var(--deep); border-radius: 4px; }
+    .ereader-btn-deep { background-color: var(--deep); color: var(--bg); text-transform: uppercase; font-weight: 700; border-radius: 2px; }
+    .ereader-btn-outline { background-color: transparent; border: 4px solid var(--deep); color: var(--deep); text-transform: uppercase; font-weight: 900; transition: all 0.2s; }
+    .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+    .calendar-day { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; font-size: 8px; font-weight: 700; border: 1px solid rgba(0,0,0,0.05); background: white; }
+    .day-mini-icon { width: 90%; height: 90%; object-fit: contain; image-rendering: pixelated; }
+    .bar-failed { background-image: repeating-linear-gradient(45deg, #ccc, #ccc 2px, #fff 2px, #fff 4px); border: 1px solid var(--deep); }
+    ::-webkit-scrollbar { width: 0px; }
   </style>
 </head>
-<body class="bg-slate-900 text-white font-sans selection:bg-green-500/30">
-  <div id="root"></div>
+<body class="p-4 flex justify-center">
+  <div id="root" class="w-full max-w-md"></div>
 
   <script type="text/babel">
     const { useState, useEffect, useMemo } = React;
-    
-    // --- CONFIGURATION ---
+
     const CLIENT_ID = '993686805304-ejcjgvg9or29fi8e7gsek1kqljob2hok.apps.googleusercontent.com';
     const SCOPES = 'https://www.googleapis.com/auth/drive.file';
 
@@ -32,7 +38,6 @@
       saveLocal() { localStorage.setItem('workoutData', JSON.stringify(this.data)); }
     };
 
-    // --- DATA ---
     const workoutData = {
       1: { type: 'rounds', rounds: 3, warmUp: { name: '1km Run' }, exercises: [
           { id: 1, name: '20m dumbbell lunges', trackWeight: true }, 
@@ -63,40 +68,24 @@
           { id: 4, name: 'Incline dumbbell press', sets: 3 }, 
           { id: 5, name: 'Cable triceps pushdowns', sets: 3 }, 
           { id: 6, name: 'Dumbbell curls', sets: 3 }
-      ], finisher: { name: '15 min run' }},
-      5: { type: 'other', exercises: [] }
+      ], finisher: { name: '15 min run' }}
     };
 
-    const THEME_COLORS = {
-      'Day 1': { bg: 'bg-green-500', text: 'text-green-500', glow: 'shadow-[0_0_10px_rgba(34,197,94,0.4)]', pixelText: 'text-green-950', border: 'border-green-500' },
-      'Day 2': { bg: 'bg-cyan-400', text: 'text-cyan-400', glow: 'shadow-[0_0_10px_rgba(34,211,238,0.4)]', pixelText: 'text-cyan-950', border: 'border-cyan-400' },
-      'Day 3': { bg: 'bg-orange-500', text: 'text-orange-500', glow: 'shadow-[0_0_10px_rgba(249,115,22,0.4)]', pixelText: 'text-orange-950', border: 'border-orange-500' },
-      'Day 4': { bg: 'bg-purple-500', text: 'text-purple-500', glow: 'shadow-[0_0_10px_rgba(168,85,247,0.4)]', pixelText: 'text-purple-950', border: 'border-purple-500' },
-      'Other': { bg: 'bg-pink-500', text: 'text-pink-500', glow: 'shadow-[0_0_10px_rgba(236,72,153,0.4)]', pixelText: 'text-pink-950', border: 'border-pink-500' },
-      'Default': { bg: 'bg-slate-500', text: 'text-slate-500', glow: '', pixelText: 'text-slate-900', border: 'border-slate-500' }
-    };
-
-    const formatTimeInput = (val) => {
-      const clean = val.replace(/\D/g, '');
-      if (clean.length <= 2) return clean;
-      const mins = clean.slice(0, clean.length - 2);
-      const secs = clean.slice(-2);
-      const safeSecs = parseInt(secs) > 59 ? '59' : secs;
-      return `${mins}:${safeSecs}`;
-    };
-
-    // --- MAIN APP ---
     function App() {
       const [isLoggedIn, setIsLoggedIn] = useState(false);
       const [tokenClient, setTokenClient] = useState(null);
-      const [selectedDay, setSelectedDay] = useState(null);
+      const [isActive, setIsActive] = useState(false);
       const [syncStatus, setSyncStatus] = useState("");
-      const [retroDate, setRetroDate] = useState(null); 
+      const [trigger, setTrigger] = useState(0);
 
       const totalSessions = useMemo(() => {
-        return Object.keys(storage.data).filter(k => k.startsWith('workout:')).length;
-      }, [storage.data]);
+        return Object.keys(storage.data).filter(k => k.startsWith('w:')).length;
+      }, [storage.data, trigger]);
 
+      const nextDayLabel = (totalSessions + 1).toString().padStart(2, '0');
+      const currentRotationId = (totalSessions % 4) + 1;
+
+      // GOOGLE AUTH INIT
       useEffect(() => {
         const init = () => {
           const client = google.accounts.oauth2.initTokenClient({
@@ -110,7 +99,10 @@
             }
           });
           setTokenClient(client);
-          if (localStorage.getItem('gdrive_token')) setIsLoggedIn(true);
+          if (localStorage.getItem('gdrive_token')) {
+            setIsLoggedIn(true);
+            loadCloudData(localStorage.getItem('gdrive_token'));
+          }
         };
         const script = document.createElement('script');
         script.src = "https://accounts.google.com/gsi/client";
@@ -119,12 +111,11 @@
       }, []);
 
       const loadCloudData = async (token) => {
-        setSyncStatus("Pulling...");
+        setSyncStatus("PULLING...");
         try {
           const res = await fetch('https://www.googleapis.com/drive/v3/files?q=name="workouts.json"', {
             headers: { Authorization: `Bearer ${token}` }
           });
-          if (res.status === 401) { setIsLoggedIn(false); return; }
           const data = await res.json();
           if (data.files?.length > 0) {
             const fileRes = await fetch(`https://www.googleapis.com/drive/v3/files/${data.files[0].id}?alt=media`, {
@@ -132,432 +123,228 @@
             });
             storage.data = await fileRes.json();
             storage.saveLocal();
-            setSyncStatus("Synced ✅");
+            setTrigger(t => t + 1);
+            setSyncStatus("SYNCED");
           }
-        } catch (e) { setSyncStatus("Offline"); }
+        } catch (e) { setSyncStatus("OFFLINE"); }
         setTimeout(() => setSyncStatus(""), 3000);
       };
 
       const syncToCloud = async () => {
         let token = localStorage.getItem('gdrive_token');
-        if (!token) { tokenClient.requestAccessToken(); return; }
-        setSyncStatus("Saving...");
+        if (!token) return;
+        setSyncStatus("SAVING...");
         try {
           const listRes = await fetch('https://www.googleapis.com/drive/v3/files?q=name="workouts.json"', {
             headers: { Authorization: `Bearer ${token}` }
           });
-          if (listRes.status === 401) { setSyncStatus("Login Expired..."); tokenClient.requestAccessToken(); return; }
           const listData = await listRes.json();
           const fileId = listData.files?.[0]?.id;
           const metadata = { name: 'workouts.json', mimeType: 'application/json' };
           const form = new FormData();
           form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
           form.append('file', new Blob([JSON.stringify(storage.data)], { type: 'application/json' }));
-          const syncRes = await fetch(fileId ? `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart` : 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+          await fetch(fileId ? `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart` : 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
             method: fileId ? 'PATCH' : 'POST', headers: { Authorization: `Bearer ${token}` }, body: form
           });
-          if (syncRes.ok) setSyncStatus("Updated ✅");
-          else setSyncStatus("Error ❌");
-        } catch (e) { setSyncStatus("Failed"); }
+          setSyncStatus("STAMPED ✅");
+        } catch (e) { setSyncStatus("ERROR"); }
         setTimeout(() => setSyncStatus(""), 3000);
       };
 
-      const deleteWorkout = async (key) => {
-        if (prompt("Enter Password (1234):") === "1234") {
-            delete storage.data[key];
-            storage.saveLocal();
-            await syncToCloud();
-        }
-      };
-
-      const deleteAllHistory = async () => {
-        if (prompt("Enter Password (1234):") === "1234") {
-            storage.data = {};
-            storage.saveLocal();
-            await syncToCloud();
-            alert("All history cleared.");
-        }
-      };
-
-      const startRetroLog = (dateString) => {
-        setRetroDate(dateString);
-        window.scrollTo({ top: 0, behavior: 'smooth' }); // Scroll up to menu
-      };
-
       if (!isLoggedIn) return (
-        <div className="h-screen flex items-center justify-center bg-slate-900 text-center p-6">
-          <div className="w-full max-w-xs">
-            <h1 className="text-4xl font-black mb-8 text-green-500 uppercase italic leading-none">Workout<br/>Cloud</h1>
-            <button onClick={() => tokenClient.requestAccessToken()} className="bg-green-600 px-12 py-5 rounded-full font-black uppercase tracking-widest shadow-2xl w-full active:scale-95 transition-all">Start Session</button>
-          </div>
+        <div className="h-screen flex items-center justify-center bg-white text-center p-6">
+          <button onClick={() => tokenClient.requestAccessToken()} className="ereader-btn-outline px-12 py-5 text-xl">
+            INITIALIZE CLOUD
+          </button>
         </div>
       );
 
-      // --- RENDER ---
       return (
-        <div className="min-h-screen p-4 max-w-2xl mx-auto bg-slate-900 relative">
-          
-          {selectedDay !== null ? (
-            <WorkoutScreen 
-              day={selectedDay} 
-              onBack={() => { setSelectedDay(null); setRetroDate(null); }} 
-              onSync={syncToCloud} 
-              storage={storage} 
-              retroDate={retroDate} 
-            />
+        <div className="ereader-panel p-8 min-h-[90vh] flex flex-col w-full shadow-sm">
+          {!isActive ? (
+            <div className="flex-1 flex flex-col">
+              <div className="border-b-2 border-black pb-2 mb-10 flex justify-between items-end">
+                <h1 className="text-2xl font-black uppercase">TRACKER</h1>
+                <span className="text-[10px] font-black opacity-30 uppercase">{syncStatus || `SESS: ${currentRotationId}`}</span>
+              </div>
+              
+              <div className="flex-1 flex flex-col justify-center items-center">
+                <button 
+                  onClick={() => setIsActive(true)} 
+                  className="ereader-btn-outline w-full py-16 text-4xl"
+                >
+                  START: DAY {nextDayLabel}
+                </button>
+              </div>
+              
+              <WorkoutCalendar trigger={trigger} storage={storage} />
+              
+              <button 
+                onClick={() => { if(confirm("Clear?")) { localStorage.clear(); window.location.reload(); } }} 
+                className="mt-6 text-[9px] font-black uppercase opacity-20 self-center"
+              >
+                Reset Cache
+              </button>
+            </div>
           ) : (
-            <>
-              {/* HEADER */}
-              <div className="flex justify-between items-center mb-6">
-                 <div className="text-[10px] font-black uppercase tracking-widest text-slate-500">Total Sessions: <span className="text-white text-lg">{totalSessions}</span></div>
-                 <div className="flex items-center gap-3">
-                    <button onClick={() => loadCloudData(localStorage.getItem('gdrive_token'))} className="text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-green-500">{syncStatus || "Cloud Sync ☁️"}</button>
-                    <button onClick={() => { localStorage.clear(); window.location.reload(); }} className="text-[10px] font-black uppercase tracking-widest text-slate-600">Logout</button>
-                 </div>
-              </div>
-
-              {/* RETRO BANNER */}
-              {retroDate && (
-                <div className="bg-yellow-500/20 border border-yellow-500 text-yellow-500 p-4 rounded-xl mb-6 text-center animate-pulse">
-                  <h3 className="font-black uppercase tracking-widest text-xs">Retroactive Mode</h3>
-                  <p className="font-bold text-lg">Logging for: {retroDate}</p>
-                  <button onClick={() => setRetroDate(null)} className="mt-2 text-[10px] bg-slate-900 px-3 py-1 rounded uppercase font-black">Cancel</button>
-                </div>
-              )}
-
-              {/* HORIZONTAL MENU */}
-              <div className="flex overflow-x-auto gap-1.5 pb-6 mb-2 snap-x px-1 justify-between">
-                {[1, 2, 3, 4, 5].map(day => {
-                  const dayLabel = day === 5 ? 'Other' : `Day ${day}`;
-                  const theme = THEME_COLORS[dayLabel] || THEME_COLORS['Default'];
-                  return (
-                    <button key={day} onClick={() => setSelectedDay(day)} className="flex-none w-16 snap-center bg-slate-800 py-3 rounded-2xl border border-slate-700 flex flex-col items-center justify-center gap-2 active:scale-95 transition-all group">
-                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-xs ${theme.bg} ${theme.pixelText} ${theme.glow}`}>
-                          {day === 5 ? '?' : day}
-                      </div>
-                      <h2 className={`text-[9px] font-bold uppercase tracking-tighter ${theme.text} group-hover:brightness-110 whitespace-nowrap`}>{day === 5 ? 'Other' : `Day ${day}`}</h2>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* EMBEDDED HISTORY CALENDAR */}
-              <HistoryView onDeleteAll={deleteAllHistory} onDeleteOne={deleteWorkout} onLogPast={startRetroLog} />
-            </>
+            <GuidedSession 
+              rotationId={currentRotationId}
+              dayLabel={nextDayLabel} 
+              onBack={() => { setIsActive(false); setTrigger(t => t + 1) }} 
+              storage={storage} 
+              onSync={syncToCloud}
+            />
           )}
         </div>
       );
     }
 
-    // --- WORKOUT RECORDER ---
-    function WorkoutScreen({ day, onBack, onSync, storage, retroDate }) {
-      const config = workoutData[day];
-      const dayLabel = day === 5 ? 'Other' : `Day ${day}`;
-      const workoutId = `workout:current:${dayLabel}`;
-      const theme = THEME_COLORS[dayLabel] || THEME_COLORS['Default'];
-
-      const [timer, setTimer] = useState(0); 
-      const [isRunning, setIsRunning] = useState(false);
-      const [manualDuration, setManualDuration] = useState("60"); 
-      const [notes, setNotes] = useState("");
-      const [warmUpData, setWarmUpData] = useState({ speed: '', time: '' });
-      const [finisherData, setFinisherData] = useState({ speed: '', distance: '' });
-      const [lastWorkout, setLastWorkout] = useState(null);
-      const [exercises, setExercises] = useState([]);
-
-      useEffect(() => {
-        const saved = !retroDate ? localStorage.getItem(workoutId) : null;
-        if (saved) {
-          const d = JSON.parse(saved);
-          setTimer(d.timer); setNotes(d.notes); setWarmUpData(d.warmUpData);
-          setFinisherData(d.finisherData); setExercises(d.exercises);
-        } else {
-          if (config.type === 'rounds') setExercises(config.exercises.map(ex => ({ ...ex, rounds: 0, weight: ex.trackWeight ? '' : undefined })));
-          else setExercises(config.exercises.map(ex => ({ ...ex, completedSets: Array(ex.sets).fill(null).map(() => ({ weight: '', reps: '', completed: false })) })));
-        }
-        
-        const historyKeys = Object.keys(storage.data).filter(k => k.startsWith('workout:'));
-        const items = historyKeys.map(k => JSON.parse(storage.data[k]));
-        const match = items.sort((a,b) => new Date(b.date) - new Date(a.date)).find(w => w.day === dayLabel);
-        if (match) setLastWorkout(match);
-      }, [dayLabel, retroDate]);
-
-      useEffect(() => { 
-        if (!retroDate && exercises.length > 0) localStorage.setItem(workoutId, JSON.stringify({ timer, exercises, notes, warmUpData, finisherData })); 
-      }, [timer, exercises, notes, warmUpData, finisherData]);
-
-      useEffect(() => {
-        let interval;
-        if (isRunning && !retroDate) interval = setInterval(() => setTimer(t => t + 1), 1000);
-        return () => clearInterval(interval);
-      }, [isRunning]);
-
-      const completeWorkout = async (isInitialSeed = false) => {
-        let finalDate = new Date().toISOString();
-        let finalTime = timer;
-
-        if (retroDate) {
-          const now = new Date();
-          finalDate = `${retroDate}T${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:00.000Z`;
-          finalTime = parseInt(manualDuration) * 60; 
-        } else if (isInitialSeed) {
-          finalTime = 0;
-        }
-
-        const newWorkout = { 
-          date: finalDate, 
-          time: finalTime, 
-          exercises, notes, day: dayLabel, warmUp: warmUpData, finisher: finisherData, isSeed: isInitialSeed 
-        };
-        
-        storage.data[`workout:${Date.now()}`] = JSON.stringify(newWorkout);
-        storage.saveLocal();
-        if (!retroDate) localStorage.removeItem(workoutId); 
-        await onSync(); 
-        onBack();
-      };
-
-      return (
-        <div className="pb-24">
-          <button onClick={onBack} className="mb-6 flex items-center gap-2 text-slate-500 font-black uppercase text-[10px] tracking-widest">Back</button>
-          
-          <div className={`bg-slate-800 rounded-[2.5rem] p-10 mb-8 text-center border shadow-2xl relative ${retroDate ? 'border-yellow-500/50' : 'border-slate-700'}`}>
-            <h2 className={`absolute top-6 left-0 w-full text-center text-xs font-black uppercase tracking-[0.2em] ${theme.text}`}>{dayLabel} {retroDate && `(${retroDate})`}</h2>
-            
-            {retroDate ? (
-              <div className="mt-8 mb-4">
-                 <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Duration (Minutes)</div>
-                 <input type="number" value={manualDuration} onChange={e => setManualDuration(e.target.value)} className="bg-slate-900 text-5xl font-mono font-black text-white text-center w-32 rounded-xl py-2 outline-none border border-slate-700 focus:border-yellow-500" />
-              </div>
-            ) : (
-              <>
-                <div className="text-7xl font-mono font-black mb-8 tracking-tighter text-white leading-none mt-6">
-                  {Math.floor(timer/60)}:{(timer%60).toString().padStart(2,'0')}
-                </div>
-                <button onClick={() => setIsRunning(!isRunning)} className={`px-12 py-4 rounded-2xl font-black uppercase tracking-widest shadow-xl active:scale-95 transition-all ${isRunning ? 'bg-red-500 shadow-red-900/40' : `${theme.bg} shadow-lg`}`}>{isRunning ? 'Pause' : 'Start'}</button>
-              </>
-            )}
-          </div>
-
-          <div className="space-y-5">
-            {/* WARM UP */}
-            {config.warmUp && (
-              <div className={`bg-slate-800 p-6 rounded-3xl border-l-4 shadow-lg border border-slate-700/50`} style={{ borderColor: theme.bg.replace('bg-', 'var(--tw-colors-') }}>
-                <h2 className={`text-xl font-black ${theme.text} uppercase italic mb-4 text-center`}>🏃 1KM RUN</h2>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-slate-900 p-2 rounded-2xl border border-slate-700 relative">
-                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[8px] font-black text-slate-600 uppercase">SPEED</span>
-                    <input type="number" placeholder={lastWorkout?.warmUp?.speed || "0.0"} className="w-full bg-transparent pl-10 pr-2 py-3 text-xl font-bold text-white text-center outline-none" value={warmUpData.speed} onChange={(e) => setWarmUpData({...warmUpData, speed: e.target.value})} />
-                  </div>
-                  <div className="bg-slate-900 p-2 rounded-2xl border border-slate-700 relative">
-                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[8px] font-black text-slate-600 uppercase">TIME</span>
-                    <input type="text" placeholder={lastWorkout?.warmUp?.time || "00:00"} className="w-full bg-transparent pl-10 pr-2 py-3 text-xl font-bold text-white text-center outline-none" value={warmUpData.time} onChange={(e) => setWarmUpData({...warmUpData, time: formatTimeInput(e.target.value)})} />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* EXERCISES */}
-            {exercises.map((ex, i) => {
-              const lastEx = lastWorkout?.exercises?.find(le => le.id === ex.id);
-              return (
-                <div key={ex.id} className="bg-slate-800 p-8 rounded-3xl border border-slate-700 shadow-lg relative">
-                  <h3 className="font-black text-xl text-white uppercase tracking-tight leading-none mb-6 italic">{ex.name}</h3>
-                  {config.type === 'rounds' ? (
-                    <div className="space-y-6">
-                      <button onClick={() => {const u = [...exercises]; u[i].rounds = u[i].rounds < config.rounds ? u[i].rounds + 1 : 0; setExercises(u);}} className={`w-full py-5 rounded-2xl font-black uppercase tracking-widest transition-all ${ex.rounds === config.rounds ? `${theme.bg.replace('500','900')}/40 ${theme.text} border-2` : 'bg-slate-700 text-white'}`} style={{borderColor: ex.rounds === config.rounds ? 'currentColor' : 'transparent'}}>Round {ex.rounds}/{config.rounds}</button>
-                      {ex.trackWeight && (
-                        <div className="flex items-center gap-3 bg-slate-900 p-3 rounded-xl border border-slate-700 relative">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-500 uppercase">WEIGHT</span>
-                          <input type="number" placeholder={lastEx?.weight || "0"} className="w-full bg-transparent text-xl font-bold text-center outline-none" value={ex.weight} onChange={(e) => {const u = [...exercises]; u[i].weight = e.target.value; setExercises(u);}} />
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      {ex.completedSets?.map((set, sIdx) => {
-                        const isDone = set.weight !== '' && set.reps !== '';
-                        const lastS = lastEx?.completedSets?.[sIdx];
-                        return (
-                          <div key={sIdx} className={`flex items-center gap-3 p-3 rounded-2xl border transition-all duration-300 ${isDone ? `${theme.bg.replace('500','900')}/20` : 'bg-slate-900/50 border-slate-700'}`} style={{borderColor: isDone ? 'currentColor' : '', color: isDone ? 'var(--tw-colors-' + theme.text.replace('text-','') + ')' : ''}}>
-                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-[10px] ${isDone ? theme.text : 'text-slate-700'}`}>S{sIdx+1}</div>
-                            <div className="flex-1 relative bg-slate-950/40 rounded-xl border border-slate-700/50">
-                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[8px] font-black text-slate-600 uppercase">KG</span>
-                                <input type="number" placeholder={lastS?.weight || "0"} className="w-full bg-transparent pl-8 pr-2 py-3 text-xl font-bold text-white text-center outline-none" value={set.weight} onChange={(e) => {const u = [...exercises]; u[i].completedSets[sIdx].weight = e.target.value; setExercises(u);}} />
-                            </div>
-                            <span className="text-slate-700 font-black">×</span>
-                            <div className="flex-1 relative bg-slate-950/40 rounded-xl border border-slate-700/50">
-                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[8px] font-black text-slate-600 uppercase">REPS</span>
-                                <input type="number" placeholder={lastS?.reps || "0"} className="w-full bg-transparent pl-10 pr-2 py-3 text-xl font-bold text-white text-center outline-none" value={set.reps} onChange={(e) => {const u = [...exercises]; u[i].completedSets[sIdx].reps = e.target.value; setExercises(u);}} />
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-
-            {/* FINISHER (Days 2 & 4) */}
-            {config.finisher && (
-              <div className={`bg-slate-800 p-6 rounded-3xl border-l-4 shadow-lg border border-slate-700/50`} style={{ borderColor: theme.bg.replace('bg-', 'var(--tw-colors-') }}>
-                <h2 className={`text-xl font-black ${theme.text} uppercase italic mb-4 text-center`}>🏁 15 MIN RUN</h2>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-slate-900 p-2 rounded-2xl border border-slate-700 relative">
-                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[8px] font-black text-slate-600 uppercase">SPEED</span>
-                    <input type="number" placeholder={lastWorkout?.finisher?.speed || "0.0"} className="w-full bg-transparent pl-10 pr-2 py-3 text-xl font-bold text-white text-center outline-none" value={finisherData.speed} onChange={(e) => setFinisherData({...finisherData, speed: e.target.value})} />
-                  </div>
-                  <div className="bg-slate-900 p-2 rounded-2xl border border-slate-700 relative">
-                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[8px] font-black text-slate-600 uppercase">DIST (km)</span>
-                    <input type="number" placeholder={lastWorkout?.finisher?.distance || "0.0"} className="w-full bg-transparent pl-14 pr-2 py-3 text-xl font-bold text-white text-center outline-none" value={finisherData.distance} onChange={(e) => setFinisherData({...finisherData, distance: e.target.value})} />
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-          
-          <div className="mt-12 space-y-4">
-              <button onClick={() => completeWorkout(false)} className={`w-full py-6 rounded-[2rem] font-black text-2xl shadow-2xl ${retroDate ? 'bg-yellow-600 shadow-yellow-900/40' : theme.bg} hover:brightness-110 uppercase tracking-tighter active:scale-95 transition-all`}>Save {retroDate ? 'Entry' : 'Workout'} ☁️</button>
-          </div>
-        </div>
-      );
-    }
-
-    // --- EMBEDDED CALENDAR WIDGET ---
-    function HistoryView({ onDeleteAll, onDeleteOne, onLogPast }) {
+    function WorkoutCalendar({ trigger, storage }) {
       const [viewDate, setViewDate] = useState(new Date());
-      const [selectedDate, setSelectedDate] = useState(null);
-      
-      const historyMap = useMemo(() => {
+      const sessionMap = useMemo(() => {
         const map = {};
-        Object.keys(storage.data).forEach(k => {
-          if (!k.startsWith('workout:')) return;
-          const w = JSON.parse(storage.data[k]);
-          const d = new Date(w.date);
-          const dateKey = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-          if (!map[dateKey]) map[dateKey] = [];
-          map[dateKey].push({ key: k, data: w });
+        Object.values(storage.data).forEach(val => {
+          const entry = typeof val === 'string' ? JSON.parse(val) : val;
+          const dString = new Date(entry.date).toDateString();
+          map[dString] = entry.dayLabel;
         });
         return map;
-      }, [storage.data]);
+      }, [storage.data, trigger]);
 
-      const year = viewDate.getFullYear();
-      const month = viewDate.getMonth();
-      const firstDay = new Date(year, month, 1).getDay();
-      const daysInMonth = new Date(year, month + 1, 0).getDate();
-      const blanks = Array(firstDay).fill(null);
-      const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
-
-      const monthlyCount = days.reduce((acc, day) => {
-        const k = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-        return acc + (historyMap[k] ? 1 : 0);
-      }, 0);
-
-      const changeMonth = (offset) => {
-        setViewDate(new Date(year, month + offset, 1));
-        setSelectedDate(null);
-      };
-
-      const getTheme = (dayType) => THEME_COLORS[dayType] || THEME_COLORS['Other'];
-      const monthNames = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
-      const currentMapKey = selectedDate ? selectedDate : null;
-      const selectedWorkouts = currentMapKey ? (historyMap[currentMapKey] || []) : [];
-      const formatTime = (s) => `${Math.floor(s/60)}:${(s%60).toString().padStart(2,'0')}`;
+      const daysInMonth = new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 0).getDate();
+      const firstDayOfMonth = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1).getDay();
+      
+      const days = [];
+      for (let i = 0; i < firstDayOfMonth; i++) days.push(<div key={`pad-${i}`} className="calendar-day opacity-0" />);
+      for (let d = 1; d <= daysInMonth; d++) {
+        const dateObj = new Date(viewDate.getFullYear(), viewDate.getMonth(), d);
+        const earnedIcon = sessionMap[dateObj.toDateString()];
+        days.push(
+          <div key={d} className="calendar-day">
+            {earnedIcon ? (
+              <img src={`file:///Users/ashajeer/Library/CloudStorage/GoogleDrive-mrajeer@gmail.com/My%20Drive/WorkoutApp/DAY%20ICONS/DAY%2001@3x.png`} className="day-mini-icon" />
+            ) : ( <span className="opacity-10">{d}</span> )}
+          </div>
+        );
+      }
 
       return (
-        <div className="pb-10 pt-4 border-t border-slate-800">
-          
-          {/* CALENDAR HEADER */}
-          <div className="flex justify-between items-end mb-6">
-             <div className="flex flex-col">
-                <div className="text-xl font-black text-green-500 tracking-widest leading-none">{monthNames[month]} <span className="text-slate-600">{year}</span></div>
-                <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest mt-1">Sessions: <span className="text-white">{monthlyCount}</span></div>
-             </div>
-             <div className="flex gap-2 items-center">
-               <button onClick={onDeleteAll} className="text-red-900 bg-red-500/10 px-2 py-2 rounded-lg text-[8px] font-black uppercase tracking-widest mr-2 hover:bg-red-500/20">Wipe</button>
-               <button onClick={() => changeMonth(-1)} className="p-2 bg-slate-800 rounded-lg text-slate-400 hover:text-white font-black">{'<'}</button>
-               <button onClick={() => changeMonth(1)} className="p-2 bg-slate-800 rounded-lg text-slate-400 hover:text-white font-black">{'>'}</button>
-             </div>
+        <div className="mt-auto border-t-2 border-black pt-6">
+          <div className="flex justify-between items-center mb-4 uppercase font-black text-[11px]">
+            <button onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1))}>&lt;</button>
+            <span>{viewDate.toLocaleString('default', { month: 'long' })}</span>
+            <button onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1))}>&gt;</button>
           </div>
-
-          {/* CALENDAR GRID */}
-          <div className="bg-slate-800 p-4 rounded-2xl border border-slate-700 shadow-2xl mb-8">
-            <div className="grid grid-cols-7 gap-1 mb-2 text-center">
-              {['S','M','T','W','T','F','S'].map((d,i) => <div key={i} className="text-[10px] font-bold text-slate-600">{d}</div>)}
-            </div>
-            
-            <div className="grid grid-cols-7 gap-1.5">
-              {blanks.map((_, i) => <div key={`blank-${i}`} className="aspect-square"></div>)}
-              {days.map(day => {
-                const dateKey = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-                const hasWorkout = historyMap[dateKey];
-                const isSelected = selectedDate === dateKey;
-                let theme = THEME_COLORS['Default'];
-                if (hasWorkout && hasWorkout.length > 0) {
-                   theme = getTheme(hasWorkout[hasWorkout.length-1].data.day);
-                }
-                return (
-                  <div key={day} onClick={() => setSelectedDate(dateKey)}
-                    className={`aspect-square rounded-sm flex items-center justify-center text-[10px] font-bold cursor-pointer transition-all relative ${hasWorkout ? `${theme.bg} ${theme.pixelText} ${theme.glow}` : 'bg-slate-900/50 text-slate-700 hover:bg-slate-700'} ${isSelected ? 'ring-2 ring-white scale-110 z-10' : ''}`}>
-                    {day}
-                    {hasWorkout && hasWorkout.length > 1 && (<div className="absolute top-0.5 right-0.5 w-1 h-1 bg-white rounded-full"></div>)}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* DETAILS SECTION */}
-          <div className="space-y-4">
-             {selectedDate && (
-                 <button onClick={() => onLogPast(selectedDate)} className="w-full py-4 mb-4 rounded-2xl border-2 border-dashed border-slate-600 text-slate-500 font-black uppercase text-xs tracking-widest hover:border-yellow-500 hover:text-yellow-500 transition-colors">
-                    ➕ Log Workout for {selectedDate}
-                 </button>
-             )}
-
-             {selectedWorkouts.length === 0 && !selectedDate && <div className="text-center text-slate-600 font-bold text-xs uppercase tracking-widest mt-4">Select a pixel for details</div>}
-             
-             {selectedWorkouts.map(({key, data}) => {
-                const cardTheme = getTheme(data.day);
-                return (
-                  <div key={key} className="bg-slate-800 rounded-[2rem] border border-slate-700 shadow-lg overflow-hidden relative animate-in slide-in-from-top-2 duration-300">
-                    <div className="p-6">
-                      <div className="flex justify-between items-start mb-4">
-                        <div>
-                          <h3 className={`text-xl font-black ${cardTheme.text} uppercase leading-none`}>{data.day} {data.isSeed && "(GOALS)"}</h3>
-                          <p className="text-[10px] text-slate-500 mt-1 uppercase font-bold tracking-widest">{new Date(data.date).toLocaleTimeString()}</p>
-                        </div>
-                        <div className="flex flex-col items-end gap-2">
-                           <div className="text-2xl font-mono font-black tabular-nums">{formatTime(data.time)}</div>
-                           <button onClick={() => onDeleteOne(key)} className="text-red-500 text-[9px] font-black uppercase hover:underline">Delete</button>
-                        </div>
-                      </div>
-                      <div className="space-y-3 bg-slate-900/50 p-4 rounded-xl border border-slate-700/50">
-                        {data.exercises.map(ex => (
-                          <div key={ex.id} className="flex justify-between items-end border-b border-slate-800 pb-2 last:border-0 last:pb-0">
-                             <div className="text-xs font-bold text-slate-300 uppercase">{ex.name}</div>
-                             <div className={`text-xs font-mono opacity-80 ${cardTheme.text}`}>
-                                {ex.rounds ? `${ex.rounds} RNDS` : ex.completedSets?.filter(s => s.weight).map(s => `${s.weight}x${s.reps}`).join(' / ')}
-                             </div>
-                          </div>
-                        ))}
-                      </div>
-                      {data.finisher?.speed && (
-                         <div className="mt-2 flex justify-between items-center bg-slate-900/30 p-2 rounded text-[10px] uppercase font-bold text-slate-400">
-                            <span>Finisher (Run)</span>
-                            <span>{data.finisher.speed}km/h - {data.finisher.distance}km</span>
-                         </div>
-                      )}
-                      {data.notes && <div className="mt-4 text-xs text-slate-400 italic">"{data.notes}"</div>}
-                    </div>
-                  </div>
-                );
-             })}
-          </div>
+          <div className="calendar-grid">{days}</div>
         </div>
       );
     }
+
+    function GuidedSession({ rotationId, onBack, storage, dayLabel, onSync }) {
+      const config = workoutData[rotationId];
+      const [step, setStep] = useState('warmup');
+      const [timer, setTimer] = useState(0);
+      const [activeExId, setActiveExId] = useState(null);
+      const [progress, setProgress] = useState(config.exercises.reduce((acc, ex) => {
+        acc[ex.id] = config.type === 'rounds' ? 0 : [];
+        return acc;
+      }, {}));
+
+      useEffect(() => {
+        const interval = setInterval(() => setTimer(t => t + 1), 1000);
+        return () => clearInterval(interval);
+      }, []);
+
+      const activeEx = config.exercises.find(e => e.id === activeExId);
+      const currentDone = Object.values(progress).flat().length;
+      const totalPossible = config.exercises.reduce((a, b) => a + (config.type === 'rounds' ? config.rounds : b.sets), 0);
+
+      const logAttempt = (status) => {
+        const next = config.type === 'rounds' ? progress[activeExId] + 1 : [...progress[activeExId], status];
+        setProgress({ ...progress, [activeExId]: next });
+        const isDone = config.type === 'rounds' ? next >= config.rounds : next.length >= activeEx.sets;
+        if (isDone) setActiveExId(null);
+      };
+
+      return (
+        <div className="flex flex-col gap-6 flex-1">
+          <div className="flex justify-between items-center text-[10px] font-bold border-b border-black pb-2 uppercase tracking-widest">
+            <span>D{dayLabel} // S{rotationId} // {Math.floor(timer/60)}M</span>
+            <button onClick={onBack} className="underline">Abort</button>
+          </div>
+
+          {step === 'warmup' && (
+            <div className="flex-1 flex flex-col justify-center gap-8 text-center">
+              <h2 className="text-4xl font-black uppercase italic">Warm Up</h2>
+              <div className="border-4 border-black p-8 bg-white uppercase font-black text-xl">{config.warmUp.name}</div>
+              <button onClick={() => setStep('hub')} className="ereader-btn-deep py-6 text-xl">Enter Hub</button>
+            </div>
+          )}
+
+          {step === 'hub' && !activeExId && (
+            <div className="flex-1 flex flex-col gap-4">
+              <div className="space-y-3">
+                {config.exercises.map(ex => (
+                  <button key={ex.id} onClick={() => setActiveExId(ex.id)} className="w-full text-left bg-white p-3 border-2 border-black">
+                    <div className="flex justify-between font-black uppercase text-[10px] mb-2">
+                      <span>{ex.name}</span>
+                      <span>{config.type === 'rounds' ? `${progress[ex.id]}/${config.rounds}` : `${progress[ex.id].length}/${ex.sets}`}</span>
+                    </div>
+                    <div className="flex gap-1">
+                      {Array.from({ length: config.type === 'rounds' ? config.rounds : ex.sets }).map((_, i) => {
+                        const s = config.type === 'rounds' ? (i < progress[ex.id]) : progress[ex.id][i];
+                        return <div key={i} className={`h-2 flex-1 border border-black ${s === 'success' || s === true ? 'bg-black' : s === 'failed' ? 'bar-failed' : ''}`} />;
+                      })}
+                    </div>
+                  </button>
+                ))}
+              </div>
+              <div className="mt-auto flex flex-col items-center opacity-20"><img src="image_c8dcbd.png" className="w-24 grayscale" /></div>
+              {currentDone >= totalPossible && (
+                <button onClick={() => setStep(config.finisher ? 'finisher' : 'save')} className="ereader-btn-deep py-5 text-xl">Finalize</button>
+              )}
+            </div>
+          )}
+
+          {step === 'hub' && activeExId && (
+            <div className="flex-1 flex flex-col gap-8 text-center">
+              <div className="flex flex-col gap-4">
+                <h2 className="text-2xl font-black uppercase italic">{activeEx.name}</h2>
+                <div className="flex gap-2 px-4">
+                   {Array.from({ length: config.type === 'rounds' ? config.rounds : activeEx.sets }).map((_, i) => {
+                     const s = config.type === 'rounds' ? (i < progress[activeExId]) : progress[activeExId][i];
+                     return <div key={i} className={`h-3 flex-1 border-2 border-black ${s === 'success' || s === true ? 'bg-black' : s === 'failed' ? 'bar-failed' : ''}`} />;
+                   })}
+                </div>
+              </div>
+              <div className="flex-1 flex flex-col justify-center border-y-4 border-black bg-white font-black py-12">
+                <p className="text-4xl uppercase">{config.type === 'rounds' ? `Perform Round` : `Log Set`}</p>
+                {activeEx.trackWeight && <p className="text-sm opacity-40 mt-2">Track weight in notes</p>}
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <button onClick={() => logAttempt('failed')} className="border-4 border-black font-black uppercase py-4 text-xs">Failed</button>
+                <button onClick={() => logAttempt('success')} className="ereader-btn-deep py-4 text-xl">Success</button>
+              </div>
+            </div>
+          )}
+
+          {(step === 'finisher' || step === 'save') && (
+            <div className="flex-1 flex flex-col justify-center gap-8 text-center">
+              <h2 className="text-5xl font-black uppercase italic">{config.finisher ? 'Finisher' : 'Complete'}</h2>
+              {config.finisher && <div className="border-4 border-black p-8 bg-white uppercase font-black text-xl">{config.finisher.name}</div>}
+              <button onClick={() => {
+                storage.data[`w:${Date.now()}`] = JSON.stringify({ date: new Date().toISOString(), dayLabel: dayLabel });
+                storage.saveLocal();
+                onSync();
+                onBack();
+              }} className="ereader-btn-deep py-8 text-2xl font-black italic">STAMP DAY {dayLabel}</button>
+            </div>
+          )}
+        </div>
+      );
+    }
+
     ReactDOM.createRoot(document.getElementById('root')).render(<App />);
   </script>
 </body>
