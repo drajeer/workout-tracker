@@ -188,6 +188,13 @@
         }
       };
 
+      const clearCache = () => {
+        if (confirm('Clear all local cache? This will remove draft sessions but NOT affect cloud data.')) {
+          localStorage.removeItem('cloudSessionDraft');
+          setTrigger(t => t + 1);
+        }
+      };
+
       if (!isLoggedIn) return (
         <div className="h-screen flex items-center justify-center bg-white p-6 border-8 border-double border-black">
           <button onClick={() => tokenClient?.requestAccessToken()} className="ereader-btn-outline px-10 py-6 cursor-pointer text-center font-black" disabled={isLoading}>
@@ -208,7 +215,10 @@
                 </button>
               </div>
               <WorkoutCalendar storage={storage} trigger={trigger} />
-              <button onClick={() => { if(confirm("Logout?")) { setIsLoggedIn(false); } }} className="mt-8 text-[9px] font-black uppercase opacity-70 hover:opacity-100 transition-opacity self-center">Logout</button>
+              <div className="flex flex-col gap-2 mt-8">
+                <button onClick={clearCache} className="text-[9px] font-black uppercase opacity-70 hover:opacity-100 transition-opacity self-center">Clear Cache</button>
+                <button onClick={() => { if(confirm("Logout?")) { setIsLoggedIn(false); } }} className="text-[9px] font-black uppercase opacity-70 hover:opacity-100 transition-opacity self-center">Logout</button>
+              </div>
             </div>
           ) : (
             <GuidedSession
