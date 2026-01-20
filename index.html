@@ -518,6 +518,9 @@
                 <div className="border-t-2 border-black pt-3">
                   <p className="text-xs font-black uppercase opacity-60 mb-1">Run</p>
                   <p className="font-bold">{workout.finisher.name}</p>
+                  {workout.finisher.distance && <p className="text-sm opacity-70">Distance: {workout.finisher.distance} KM</p>}
+                  {workout.finisher.speed && <p className="text-sm opacity-70">Speed: {workout.finisher.speed} KM/H</p>}
+                  {workout.finisher.time && <p className="text-sm opacity-70">Time: {workout.finisher.time}</p>}
                 </div>
               )}
             </div>
