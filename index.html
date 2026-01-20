@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <link rel="icon" href="data:,">
-  <title>TRACKER OS - FIXED DATA SYNC</title>
+  <title>TRACKER OS - PERFORMANCE EDITION (Cloud)</title>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -16,9 +16,9 @@
     body { background-color: var(--bg); color: var(--deep); overscroll-behavior-y: contain; }
     .ereader-panel { background-color: var(--screen); border: 1px solid var(--deep); border-radius: 4px; }
     .ereader-btn-outline { background-color: transparent; border: 4px solid var(--deep); color: var(--deep); text-transform: uppercase; font-weight: 900; transition: all 0.2s; }
-    .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
     .calendar-day { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; font-size: 8px; font-weight: 700; border: 1px solid rgba(0,0,0,0.05); background: white; }
     .day-mini-icon { width: 90%; height: 90%; object-fit: contain; image-rendering: pixelated; }
+    .ereader-btn-deep { background-color: var(--deep); color: var(--bg); text-transform: uppercase; font-weight: 700; border-radius: 2px; }
     ::-webkit-scrollbar { width: 0px; }
   </style>
 </head>
@@ -28,102 +28,154 @@
   <script type="text/babel">
     const { useState, useEffect, useMemo } = React;
 
+    // --- GOOGLE DRIVE CONFIG ---
     const CLIENT_ID = '993686805304-ejcjgvg9or29fi8e7gsek1kqljob2hok.apps.googleusercontent.com';
     const SCOPES = 'https://www.googleapis.com/auth/drive.file';
 
-    const storage = {
-      data: JSON.parse(localStorage.getItem('workoutData') || '{}'),
-      saveLocal() { localStorage.setItem('workoutData', JSON.stringify(this.data)); }
-    };
+    // --- CLOUD STORAGE CLASS ---
+    class CloudStorage {
+      constructor() {
+        this.data = {};
+        this.token = null;
+        this.fileId = null;
+      }
+
+      async init(token) {
+        this.token = token;
+        await this.loadFromCloud();
+      }
+
+      async loadFromCloud() {
+        try {
+          const res = await fetch('https://www.googleapis.com/drive/v3/files?q=name="workouts.json"', {
+            headers: { Authorization: `Bearer ${this.token}` }
+          });
+
+          if (res.status === 401) throw new Error('Unauthorized');
+
+          const data = await res.json();
+          if (data.files?.length > 0) {
+            this.fileId = data.files[0].id;
+            const fileRes = await fetch(`https://www.googleapis.com/drive/v3/files/${this.fileId}?alt=media`, {
+              headers: { Authorization: `Bearer ${this.token}` }
+            });
+            this.data = await fileRes.json();
+          }
+        } catch (e) {
+          console.error('Cloud load error:', e);
+          throw e;
+        }
+      }
+
+      async saveToCloud() {
+        if (!this.token) throw new Error('Not authenticated');
+
+        try {
+          const metadata = { name: 'workouts.json', mimeType: 'application/json' };
+          const form = new FormData();
+          form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+          form.append('file', new Blob([JSON.stringify(this.data)], { type: 'application/json' }));
+
+          const url = this.fileId
+            ? `https://www.googleapis.com/upload/drive/v3/files/${this.fileId}?uploadType=multipart`
+            : 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
+
+          const res = await fetch(url, {
+            method: this.fileId ? 'PATCH' : 'POST',
+            headers: { Authorization: `Bearer ${this.token}` },
+            body: form
+          });
+
+          if (!res.ok) throw new Error('Save failed');
+
+          if (!this.fileId) {
+            const resData = await res.json();
+            this.fileId = resData.id;
+          }
+        } catch (e) {
+          console.error('Cloud save error:', e);
+          throw e;
+        }
+      }
+    }
 
     const workoutData = {
       1: { type: 'rounds', rounds: 3, warmUp: { name: '1km Run' }, exercises: [{ id: 1, name: '20m dumbbell lunges', trackWeight: true }, { id: 2, name: '20m sled push', trackWeight: true }, { id: 4, name: '15 goblet squats', trackWeight: true }, { id: 5, name: '15 box jumps' }, { id: 3, name: '500m rowing' }] },
-      2: { type: 'sets', warmUp: { name: '1km Run' }, exercises: [{ id: 1, name: 'Leg press', sets: 4 }, { id: 2, name: 'Bench press', sets: 4 }, { id: 3, name: 'Cable row', sets: 4 }, { id: 4, name: 'Bulgarian split squats', sets: 3 }, { id: 5, name: 'Face pulls', sets: 3 }], finisher: { name: '15 min run' }},
+      2: { type: 'sets', warmUp: { name: '1km Run' }, exercises: [{ id: 1, name: 'Leg press', sets: 4, targetReps: 10 }, { id: 2, name: 'Bench press', sets: 4, targetReps: 12 }, { id: 3, name: 'Cable row', sets: 4, targetReps: 10 }, { id: 4, name: 'Bulgarian split squats', sets: 3, targetReps: 8 }, { id: 5, name: 'Face pulls', sets: 3, targetReps: 10 }], finisher: { name: '15 min' }},
       3: { type: 'rounds', rounds: 3, warmUp: { name: '1km Run' }, exercises: [{ id: 1, name: '10 pull-ups' }, { id: 2, name: '10 dips' }, { id: 3, name: '10 barbell thrusters', trackWeight: true }, { id: 4, name: '10m sled pull', trackWeight: true }, { id: 5, name: '15 push-ups' }, { id: 6, name: '500m rowing' }] },
-      4: { type: 'sets', warmUp: { name: '1km Run' }, exercises: [{ id: 1, name: 'Leg curls', sets: 4 }, { id: 2, name: 'Overhead press', sets: 4 }, { id: 3, name: 'Lat pulldown', sets: 4 }, { id: 4, name: 'Incline dumbbell press', sets: 3 }, { id: 5, name: 'Cable triceps pushdowns', sets: 3 }, { id: 6, name: 'Dumbbell curls', sets: 3 }], finisher: { name: '15 min run' }}
+      4: { type: 'sets', warmUp: { name: '1km Run' }, exercises: [{ id: 1, name: 'Leg curls', sets: 4, targetReps: 10 }, { id: 2, name: 'Overhead press', sets: 4, targetReps: 12 }, { id: 3, name: 'Lat pulldown', sets: 4, targetReps: 10 }, { id: 4, name: 'Incline dumbbell press', sets: 3, targetReps: 8 }, { id: 5, name: 'Cable triceps pushdowns', sets: 3, targetReps: 10 }, { id: 6, name: 'Dumbbell curls', sets: 3, targetReps: 10 }], finisher: { name: '15 min' }}
     };
 
     function App() {
       const [isLoggedIn, setIsLoggedIn] = useState(false);
+      const [isLoading, setIsLoading] = useState(true);
       const [tokenClient, setTokenClient] = useState(null);
+      const [storage] = useState(new CloudStorage());
       const [isActive, setIsActive] = useState(false);
-      const [syncStatus, setSyncStatus] = useState("OFFLINE");
       const [trigger, setTrigger] = useState(0);
 
-      // FIXED: Now correctly counts keys starting with "workout:"
       const totalSessions = useMemo(() => {
         return Object.keys(storage.data).filter(k => k.startsWith('workout:')).length;
       }, [storage.data, trigger]);
 
-      const nextDayLabel = (totalSessions + 1).toString().padStart(2, '0');
       const currentRotationId = (totalSessions % 4) + 1;
+
+      const lastPerf = useMemo(() => {
+        const history = Object.values(storage.data)
+          .map(v => {
+            try {
+              return typeof v === 'string' ? JSON.parse(v) : v;
+            } catch (e) {
+              return null;
+            }
+          })
+          .filter(v => v && v.day === `Day ${currentRotationId}`)
+          .sort((a, b) => new Date(b.date) - new Date(a.date));
+        return history[0] || null;
+      }, [storage.data, currentRotationId]);
 
       useEffect(() => {
         const init = () => {
           const client = google.accounts.oauth2.initTokenClient({
-            client_id: CLIENT_ID, scope: SCOPES,
-            callback: (resp) => {
+            client_id: CLIENT_ID,
+            scope: SCOPES,
+            callback: async (resp) => {
               if (resp.access_token) {
-                localStorage.setItem('gdrive_token', resp.access_token);
-                setIsLoggedIn(true);
-                loadCloudData(resp.access_token);
+                try {
+                  setIsLoading(true);
+                  await storage.init(resp.access_token);
+                  setIsLoggedIn(true);
+                  setTrigger(t => t + 1);
+                } catch (e) {
+                  console.error('Auth error:', e);
+                }
+                setIsLoading(false);
               }
             }
           });
           setTokenClient(client);
-          const existingToken = localStorage.getItem('gdrive_token');
-          if (existingToken) setIsLoggedIn(true);
         };
         const script = document.createElement('script');
         script.src = "https://accounts.google.com/gsi/client";
         script.onload = init;
         document.head.appendChild(script);
+        setIsLoading(false);
       }, []);
 
-      const loadCloudData = async (token) => {
-        setSyncStatus("PULLING...");
-        try {
-          const res = await fetch('https://www.googleapis.com/drive/v3/files?q=name="workouts.json" and trashed=false', {
-            headers: { Authorization: `Bearer ${token}` }
-          });
-          const data = await res.json();
-          if (data.files?.length > 0) {
-            const fileRes = await fetch(`https://www.googleapis.com/drive/v3/files/${data.files[0].id}?alt=media`, {
-              headers: { Authorization: `Bearer ${token}` }
-            });
-            storage.data = await fileRes.json();
-            storage.saveLocal();
-            setTrigger(t => t + 1);
-            setSyncStatus("SYNCED");
-          }
-        } catch (e) { setSyncStatus("ERROR"); }
-      };
-
       const syncToCloud = async () => {
-        let token = localStorage.getItem('gdrive_token');
-        if (!token) return;
-        setSyncStatus("SAVING...");
         try {
-          const listRes = await fetch('https://www.googleapis.com/drive/v3/files?q=name="workouts.json" and trashed=false', {
-            headers: { Authorization: `Bearer ${token}` }
-          });
-          const listData = await listRes.json();
-          const fileId = listData.files?.[0]?.id;
-          const metadata = { name: 'workouts.json', mimeType: 'application/json' };
-          const form = new FormData();
-          form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
-          form.append('file', new Blob([JSON.stringify(storage.data)], { type: 'application/json' }));
-          
-          await fetch(fileId ? `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart` : 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
-            method: fileId ? 'PATCH' : 'POST', headers: { Authorization: `Bearer ${token}` }, body: form
-          });
-          setSyncStatus("READY");
-        } catch (e) { setSyncStatus("SAVE_ERROR"); }
+          await storage.saveToCloud();
+          setTrigger(t => t + 1);
+        } catch (e) {
+          console.error('Sync error:', e);
+        }
       };
 
       if (!isLoggedIn) return (
         <div className="h-screen flex items-center justify-center bg-white p-6 border-8 border-double border-black">
-          <button onClick={() => tokenClient.requestAccessToken()} className="ereader-btn-outline px-10 py-6 text-2xl">AUTH GOOGLE</button>
+          <button onClick={() => tokenClient?.requestAccessToken()} className="ereader-btn-outline px-10 py-6 cursor-pointer text-center font-black" disabled={isLoading}>
+            {isLoading ? 'LOADING...' : 'LOAD CLOUD DATA'}
+          </button>
         </div>
       );
 
@@ -131,101 +183,150 @@
         <div className="ereader-panel p-8 min-h-[90vh] flex flex-col w-full shadow-sm">
           {!isActive ? (
             <div className="flex-1 flex flex-col">
-              <div className="border-b-2 border-black pb-2 mb-10 flex justify-between items-end">
-                <h1 className="text-xl font-black uppercase tracking-widest">TRACKER</h1>
-                <div className="flex gap-2 items-center">
-                   <button onClick={() => loadCloudData(localStorage.getItem('gdrive_token'))} className="text-[8px] border border-black px-1 font-bold">FORCE PULL</button>
-                   <span className="text-[10px] font-bold opacity-30">{syncStatus}</span>
-                </div>
-              </div>
+              <h1 className="text-xl font-black uppercase border-b-2 border-black pb-2 mb-10 tracking-widest text-center italic">Tracker Cloud</h1>
               <div className="flex-1 flex flex-col justify-center items-center">
-                <button onClick={() => setIsActive(true)} className="ereader-btn-outline w-full py-16 text-4xl">START: DAY {nextDayLabel}</button>
+                <button onClick={() => setIsActive(true)} className="ereader-btn-outline w-full py-16 text-4xl uppercase">START: DAY {(totalSessions + 1).toString().padStart(2, '0')}</button>
+                <p className="mt-4 text-[10px] font-black uppercase opacity-30 tracking-widest">Rotation Session {currentRotationId}</p>
               </div>
-              <WorkoutCalendar trigger={trigger} storage={storage} />
+              <WorkoutCalendar storage={storage} trigger={trigger} />
+              <button onClick={() => { if(confirm("Logout?")) { setIsLoggedIn(false); } }} className="mt-8 text-[9px] font-black uppercase opacity-20 hover:opacity-100 transition-opacity self-center">Logout</button>
             </div>
           ) : (
-            <GuidedSession rotationId={currentRotationId} dayLabel={nextDayLabel} onBack={() => { setIsActive(false); setTrigger(t => t + 1) }} storage={storage} onSync={syncToCloud} />
+            <GuidedSession
+              rotationId={currentRotationId}
+              dayLabel={(totalSessions + 1).toString().padStart(2, '0')}
+              lastPerf={lastPerf}
+              onBack={() => { setIsActive(false); setTrigger(t => t + 1); }}
+              storage={storage}
+              onSync={syncToCloud}
+            />
           )}
         </div>
       );
     }
 
-    function WorkoutCalendar({ trigger, storage }) {
-      const [viewDate, setViewDate] = useState(new Date());
-      const sessionMap = useMemo(() => {
-        const map = {};
-        Object.values(storage.data).forEach(val => {
-          // FIXED: Parse the internal JSON string found in your file
-          const entry = typeof val === 'string' ? JSON.parse(val) : val;
-          const dString = new Date(entry.date).toDateString();
-          map[dString] = entry.day; // Map to the "Day X" field
-        });
-        return map;
-      }, [storage.data, trigger]);
-
-      const daysInMonth = new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 0).getDate();
-      const firstDayOfMonth = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1).getDay();
-      const days = [];
-      for (let i = 0; i < firstDayOfMonth; i++) days.push(<div key={`pad-${i}`} className="calendar-day opacity-0" />);
-      for (let d = 1; d <= daysInMonth; d++) {
-        const dateObj = new Date(viewDate.getFullYear(), viewDate.getMonth(), d);
-        const hasWorkout = sessionMap[dateObj.toDateString()];
-        days.push(
-          <div key={d} className="calendar-day">
-            {hasWorkout ? (
-              <img src={`file:///Users/ashajeer/Library/CloudStorage/GoogleDrive-mrajeer@gmail.com/My%20Drive/WorkoutApp/DAY%20ICONS/DAY%2001@3x.png`} className="day-mini-icon" />
-            ) : ( <span className="opacity-10">{d}</span> )}
-          </div>
-        );
-      }
-      return (
-        <div className="mt-auto border-t-2 border-black pt-6">
-          <div className="flex justify-between items-center mb-4 uppercase font-black text-[11px]">
-            <button onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1))}>&lt;</button>
-            <span>{viewDate.toLocaleString('default', { month: 'long' })}</span>
-            <button onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1))}>&gt;</button>
-          </div>
-          <div className="calendar-grid">{days}</div>
-        </div>
-      );
-    }
-
-    // GuidedSession component logic remains the same
-    function GuidedSession({ rotationId, onBack, storage, dayLabel, onSync }) {
+    function GuidedSession({ rotationId, dayLabel, lastPerf, onBack, storage, onSync }) {
       const config = workoutData[rotationId];
       const [step, setStep] = useState('warmup');
-      const [timer, setTimer] = useState(0);
       const [activeExId, setActiveExId] = useState(null);
-      const [progress, setProgress] = useState(config.exercises.reduce((acc, ex) => {
-        acc[ex.id] = config.type === 'rounds' ? 0 : [];
-        return acc;
-      }, {}));
-      useEffect(() => { const interval = setInterval(() => setTimer(t => t + 1), 1000); return () => clearInterval(interval); }, []);
+      const [progress, setProgress] = useState(config.exercises.reduce((acc, ex) => { acc[ex.id] = config.type === 'rounds' ? 0 : []; return acc; }, {}));
+      const [warmUpData, setWarmUpData] = useState(lastPerf?.warmUp || {});
+      const [showWarmUpInput, setShowWarmUpInput] = useState(false);
+      const [warmUpTime, setWarmUpTime] = useState('');
+      const [finisherData, setRunData] = useState(lastPerf?.finisher || {});
+      const [showRunInput, setShowRunInput] = useState(false);
+      const [finisherTime, setRunTime] = useState('');
+
       const activeEx = config.exercises.find(e => e.id === activeExId);
+      const lastExData = useMemo(() => {
+        if (!lastPerf || !activeExId) return null;
+        const ex = lastPerf.exercises?.find(e => e.id === activeExId);
+        if (!ex) return null;
+        // For sets-based: completedSets array, for rounds-based: weight property
+        if (ex.completedSets && ex.completedSets.length > 0) {
+          return { completedSets: ex.completedSets, isSetBased: true };
+        } else if (ex.weight) {
+          return { weight: ex.weight, isRoundBased: true };
+        }
+        return null;
+      }, [lastPerf, activeExId]);
+
       const logAttempt = (status) => {
-        const next = config.type === 'rounds' ? progress[activeExId] + 1 : [...progress[activeExId], status];
-        setProgress({ ...progress, [activeExId]: next });
-        if (config.type === 'rounds' ? next >= config.rounds : next.length >= activeEx.sets) setActiveExId(null);
+        if (config.type === 'rounds') {
+          const next = progress[activeExId] + 1;
+          setProgress({ ...progress, [activeExId]: next });
+          if (next >= config.rounds) setActiveExId(null);
+        } else {
+          const updated = [...progress[activeExId], { status }];
+          setProgress({ ...progress, [activeExId]: updated });
+          if (updated.length >= activeEx.sets) setActiveExId(null);
+        }
       };
+
+      const currentSetIndex = config.type === 'sets' ? progress[activeExId]?.length || 0 : null;
+      const currentSetData = currentSetIndex !== null && lastExData?.completedSets?.[currentSetIndex] ? lastExData.completedSets[currentSetIndex] : null;
+
+      const completeWorkout = async () => {
+        const exercisesWithData = config.exercises.map(ex => ({
+          ...ex,
+          completedSets: progress[ex.id]
+        }));
+        storage.data[`workout:${Date.now()}`] = JSON.stringify({ date: new Date().toISOString(), day: `Day ${rotationId}`, dayLabel: `Day ${dayLabel}`, exercises: exercisesWithData, warmUp: warmUpData, finisher: config.finisher });
+        await onSync();
+        onBack();
+      };
+
       return (
         <div className="flex flex-col gap-6 flex-1">
-          <div className="flex justify-between items-center text-[10px] font-bold border-b border-black pb-2 uppercase tracking-widest">
-            <span>D{dayLabel} // S{rotationId}</span>
-            <button onClick={onBack} className="underline">Abort</button>
+          <div className="flex justify-between items-center text-[10px] font-bold border-b border-black pb-2 uppercase tracking-tighter">
+            <span>DAY {dayLabel} // SESS {rotationId}</span>
+            <button onClick={onBack} className="underline opacity-40 hover:opacity-100">Abort</button>
           </div>
-          {step === 'warmup' && (
-            <div className="flex-1 flex flex-col justify-center gap-8 text-center">
-              <h2 className="text-4xl font-black uppercase italic">Warm Up</h2>
-              <div className="border-4 border-black p-8 bg-white uppercase font-black text-xl">{config.warmUp.name}</div>
-              <button onClick={() => setStep('hub')} className="ereader-btn-outline px-6 py-4">Enter Hub</button>
+
+          {step === 'warmup' && !showWarmUpInput && (
+            <div className="flex-1 flex flex-col gap-8 text-center pt-10">
+              <h2 className="text-5xl font-black uppercase italic tracking-tighter">Warm Up</h2>
+
+              <div className="flex-1 flex flex-col justify-center border-y-8 border-black bg-white py-12">
+                <p className="text-3xl font-black uppercase mb-4 tracking-tighter">{config.warmUp.name}</p>
+                {lastPerf?.warmUp && (
+                   <div className="flex flex-col gap-2 opacity-60">
+                      <p className="text-4xl font-black">Speed: {lastPerf.warmUp.speed} KM/H</p>
+                      <p className="text-4xl font-black">Time: {lastPerf.warmUp.time}</p>
+                   </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <button onClick={() => setShowWarmUpInput(true)} className="border-4 border-black font-black uppercase py-6 text-xs">Failed</button>
+                <button onClick={() => { setWarmUpData({ ...warmUpData, status: 'success' }); setStep('hub'); }} className="ereader-btn-deep py-6 text-xl">Success</button>
+              </div>
             </div>
           )}
+
+          {step === 'warmup' && showWarmUpInput && (
+            <div className="flex-1 flex flex-col gap-8 text-center pt-10">
+              <h2 className="text-4xl font-black uppercase italic tracking-tighter">Warm Up</h2>
+              <p className="text-lg font-bold uppercase">Enter time</p>
+
+              <div className="flex-1 flex flex-col justify-center">
+                <input
+                  type="text"
+                  value={warmUpTime}
+                  onChange={(e) => {
+                    let val = e.target.value.replace(/\D/g, '');
+                    if (val.length > 4) val = val.slice(0, 4);
+                    if (val.length >= 3) {
+                      val = val.slice(0, -2) + ':' + val.slice(-2);
+                    }
+                    setWarmUpTime(val);
+                  }}
+                  placeholder="MM:SS"
+                  className="text-5xl font-black text-center border-2 border-black p-4 placeholder-gray-400"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <button onClick={() => setShowWarmUpInput(false)} className="border-4 border-black font-black uppercase py-6 text-xs">Back</button>
+                <button onClick={() => { setWarmUpData({ time: warmUpTime, status: 'failed' }); setStep('hub'); }} className="ereader-btn-deep py-6 text-xl">Done</button>
+              </div>
+            </div>
+          )}
+
           {step === 'hub' && !activeExId && (
             <div className="flex-1 flex flex-col gap-4">
               <div className="space-y-3">
                 {config.exercises.map(ex => (
-                  <button key={ex.id} onClick={() => setActiveExId(ex.id)} className="w-full text-left bg-white p-3 border-2 border-black">
-                    <div className="flex justify-between font-black uppercase text-[10px] mb-2"><span>{ex.name}</span></div>
+                  <button key={ex.id} onClick={() => {
+                    if (config.type === 'rounds') {
+                      if (progress[ex.id] < config.rounds) {
+                        setProgress({ ...progress, [ex.id]: progress[ex.id] + 1 });
+                      }
+                    } else {
+                      setActiveExId(ex.id);
+                    }
+                  }} className="w-full text-left bg-white p-3 border-2 border-black">
+                    <div className="font-black uppercase text-2xl mb-2 tracking-tighter">{ex.name}</div>
                     <div className="flex gap-1">
                       {Array.from({ length: config.type === 'rounds' ? config.rounds : ex.sets }).map((_, i) => {
                         const s = config.type === 'rounds' ? (i < progress[ex.id]) : progress[ex.id][i];
@@ -235,19 +336,190 @@
                   </button>
                 ))}
               </div>
-              <button onClick={() => {
-                storage.data[`workout:${Date.now()}`] = JSON.stringify({ date: new Date().toISOString(), dayLabel, day: `Day ${rotationId}` });
-                storage.saveLocal(); onSync(); onBack();
-              }} className="ereader-btn-deep py-6 mt-auto">STAMP DAY {dayLabel}</button>
+              <div className="flex flex-col gap-3 mt-auto">
+                <button onClick={() => setStep('warmup')} className="border-4 border-black font-black uppercase py-4 text-xs">Back</button>
+                <button onClick={() => {
+                  const isComplete = config.exercises.every(ex => {
+                    if (config.type === 'rounds') return progress[ex.id] >= config.rounds;
+                    return progress[ex.id].length >= ex.sets;
+                  });
+                  if (isComplete) {
+                    if (config.finisher) {
+                      setStep('finisher');
+                    } else {
+                      completeWorkout();
+                    }
+                  }
+                }} className={`py-6 text-xl ${config.exercises.every(ex => config.type === 'rounds' ? progress[ex.id] >= config.rounds : progress[ex.id].length >= ex.sets) ? 'ereader-btn-deep' : 'border-4 border-black font-black uppercase opacity-30 cursor-not-allowed'}`}>Stamp Day {dayLabel}</button>
+              </div>
             </div>
           )}
+
+          {step === 'finisher' && !showRunInput && (
+            <div className="flex-1 flex flex-col gap-8 text-center pt-10">
+              <h2 className="text-5xl font-black uppercase italic tracking-tighter">Run</h2>
+
+              <div className="flex-1 flex flex-col justify-center border-y-8 border-black bg-white py-12">
+                <p className="text-3xl font-black uppercase mb-4 tracking-tighter">{config.finisher.name}</p>
+                {lastPerf?.finisher && (
+                   <div className="flex flex-col gap-2 opacity-60">
+                      {lastPerf.finisher.speed && <p className="text-4xl font-black">Speed: {lastPerf.finisher.speed} KM/H</p>}
+                      {lastPerf.finisher.distance && <p className="text-4xl font-black">Distance: {lastPerf.finisher.distance} KM</p>}
+                      {lastPerf.finisher.time && <p className="text-4xl font-black">Time: {lastPerf.finisher.time}</p>}
+                   </div>
+                )}
+              </div>
+
+              <div className="flex flex-col gap-3">
+                <button onClick={() => { const exercisesWithData = config.exercises.map(ex => ({ ...ex, completedSets: progress[ex.id] })); storage.data[`workout:${Date.now()}`] = JSON.stringify({ date: new Date().toISOString(), day: `Day ${rotationId}`, dayLabel: `Day ${dayLabel}`, exercises: exercisesWithData, warmUp: warmUpData, finisher: { ...config.finisher, status: 'success' } }); onSync().then(onBack); }} className="ereader-btn-deep py-8 text-2xl font-black">Success</button>
+                <button onClick={() => setShowRunInput(true)} className="border-4 border-black font-black uppercase py-3 text-xs">Failed</button>
+              </div>
+            </div>
+          )}
+
+          {step === 'finisher' && showRunInput && (
+            <div className="flex-1 flex flex-col gap-8 text-center pt-10">
+              <h2 className="text-4xl font-black uppercase italic tracking-tighter">Run</h2>
+              <p className="text-lg font-bold uppercase">Enter distance</p>
+
+              <div className="flex-1 flex flex-col justify-center border-y-8 border-black bg-white py-12">
+                <label className="text-[10px] font-black uppercase opacity-60 mb-4">Distance (KM)</label>
+                <input
+                  type="text"
+                  value={finisherData.distance || ''}
+                  onChange={(e) => setRunData({ ...finisherData, distance: e.target.value })}
+                  placeholder="e.g., 3"
+                  className="text-5xl font-black text-center border-2 border-black p-4"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <button onClick={() => setShowRunInput(false)} className="border-4 border-black font-black uppercase py-6 text-xs">Back</button>
+                <button onClick={() => { const exercisesWithData = config.exercises.map(ex => ({ ...ex, completedSets: progress[ex.id] })); storage.data[`workout:${Date.now()}`] = JSON.stringify({ date: new Date().toISOString(), day: `Day ${rotationId}`, dayLabel: `Day ${dayLabel}`, exercises: exercisesWithData, warmUp: warmUpData, finisher: { ...config.finisher, distance: finisherData.distance, status: 'failed' } }); onSync().then(onBack); }} className="ereader-btn-deep py-6 text-xl">Done</button>
+              </div>
+            </div>
+          )}
+
           {step === 'hub' && activeExId && (
             <div className="flex-1 flex flex-col gap-8 text-center pt-10">
-              <h2 className="text-2xl font-black uppercase italic">{activeEx.name}</h2>
-              <div className="flex-1 flex flex-col justify-center border-y-4 border-black bg-white font-black py-12"><p className="text-4xl uppercase">Log Result</p></div>
-              <div className="grid grid-cols-2 gap-4"><button onClick={() => logAttempt('failed')} className="border-4 border-black font-black uppercase py-4 text-xs">Failed</button><button onClick={() => logAttempt('success')} className="ereader-btn-deep py-4 text-xl">Success</button></div>
+              <h2 className="text-3xl font-black uppercase italic tracking-tighter leading-none">{activeEx.name}</h2>
+              <div className="flex gap-2 px-8">
+                  {Array.from({ length: config.type === 'rounds' ? config.rounds : activeEx.sets }).map((_, i) => {
+                    const s = config.type === 'rounds' ? (i < progress[activeExId]) : progress[activeExId][i];
+                    return <div key={i} className={`h-3 flex-1 border-2 border-black ${s ? 'bg-black' : ''}`} />;
+                  })}
+              </div>
+              <div className="flex-1 flex flex-col justify-center border-y-8 border-black bg-white py-12">
+                {currentSetData ? (
+                  <div className="flex flex-col gap-3">
+                    <p className="text-8xl font-black">{currentSetData.weight}kg</p>
+                    <p className="text-5xl font-black opacity-60 uppercase">{currentSetData.reps} reps</p>
+                  </div>
+                ) : (
+                  <p className="text-4xl font-black uppercase">Initial Base</p>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <button onClick={() => logAttempt('failed')} className="border-4 border-black font-black uppercase py-4 text-xs">Failed</button>
+                <button onClick={() => logAttempt('success')} className="ereader-btn-deep py-4 text-xl">Success</button>
+              </div>
             </div>
           )}
+        </div>
+      );
+    }
+
+    function WorkoutCalendar({ storage, trigger }) {
+      const [viewDate, setViewDate] = useState(new Date());
+      const [selectedDate, setSelectedDate] = useState(null);
+      const sessionMap = useMemo(() => {
+        const map = {};
+        const workoutByDate = {};
+        Object.entries(storage.data).forEach(([key, val]) => {
+          const entry = typeof val === 'string' ? JSON.parse(val) : val;
+          const dateStr = new Date(entry.date).toDateString();
+          map[dateStr] = true;
+          workoutByDate[dateStr] = entry;
+        });
+        return { has: map, details: workoutByDate };
+      }, [storage.data, trigger]);
+      const days = Array.from({ length: new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 0).getDate() }, (_, i) => i + 1);
+      const selectedWorkout = selectedDate ? sessionMap.details[selectedDate.toDateString()] : null;
+
+      return (
+        <div className="mt-auto border-t-2 border-black pt-6">
+          <div className="flex justify-between font-black text-[11px] uppercase mb-4 opacity-30 tracking-widest"><span>{viewDate.toLocaleString('default', { month: 'long' })}</span></div>
+          <div className="grid grid-cols-7 gap-2">
+            {days.map(d => {
+              const dateObj = new Date(viewDate.getFullYear(), viewDate.getMonth(), d);
+              const has = sessionMap.has[dateObj.toDateString()];
+              return (
+                <div
+                  key={d}
+                  onClick={() => has && setSelectedDate(dateObj)}
+                  className={`calendar-day ${has ? 'bg-black text-white cursor-pointer hover:opacity-80' : ''}`}
+                >
+                  <span className={has ? '' : 'opacity-10'}>{d}</span>
+                </div>
+              );
+            })}
+          </div>
+
+          {selectedWorkout && (
+            <WorkoutModal workout={selectedWorkout} onClose={() => setSelectedDate(null)} />
+          )}
+        </div>
+      );
+    }
+
+    function WorkoutModal({ workout, onClose }) {
+      return (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={onClose}>
+          <div className="bg-white border-4 border-black p-6 max-h-[80vh] overflow-y-auto max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-start mb-4">
+              <div>
+                <h2 className="font-black text-lg uppercase">Routine {workout.day.split(' ')[1]}</h2>
+                <p className="text-xs opacity-60">{new Date(workout.date).toLocaleDateString()}</p>
+              </div>
+              <button onClick={onClose} className="text-2xl font-black opacity-60 hover:opacity-100">×</button>
+            </div>
+
+            <div className="space-y-4">
+              {workout.warmUp && (
+                <div className="border-b-2 border-black pb-3">
+                  <p className="text-xs font-black uppercase opacity-60 mb-1">Warm Up</p>
+                  <p className="font-bold">{workout.warmUp.name}</p>
+                  {workout.warmUp.time && <p className="text-sm opacity-70">Time: {workout.warmUp.time}</p>}
+                </div>
+              )}
+
+              <div className="space-y-3">
+                {workout.exercises?.map(ex => (
+                  <div key={ex.id} className="border-l-4 border-black pl-3">
+                    <p className="text-sm font-black uppercase">{ex.name}</p>
+                    {ex.completedSets && ex.completedSets.length > 0 ? (
+                      <div className="text-xs opacity-70 mt-1">
+                        {ex.completedSets.map((set, i) => (
+                          <p key={i}>{i + 1}. {set.weight}kg × {set.reps} {set.status === 'failed' ? '(failed)' : ''}</p>
+                        ))}
+                      </div>
+                    ) : ex.weight ? (
+                      <p className="text-xs opacity-70 mt-1">{ex.weight}kg - {ex.reps || '?'} reps</p>
+                    ) : (
+                      <p className="text-xs opacity-70 mt-1">Completed</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {workout.finisher && (
+                <div className="border-t-2 border-black pt-3">
+                  <p className="text-xs font-black uppercase opacity-60 mb-1">Run</p>
+                  <p className="font-bold">{workout.finisher.name}</p>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       );
     }
