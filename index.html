@@ -113,6 +113,7 @@
       const [storage] = useState(new CloudStorage());
       const [isActive, setIsActive] = useState(false);
       const [trigger, setTrigger] = useState(0);
+      const [draftSession, setDraftSession] = useState(null);
 
       const totalSessions = useMemo(() => {
         return Object.keys(storage.data).filter(k => k.startsWith('workout:')).length;
@@ -145,6 +146,22 @@
                   setIsLoading(true);
                   await storage.init(resp.access_token);
                   setIsLoggedIn(true);
+                  // Check for draft session on re-login
+                  const draft = localStorage.getItem('cloudSessionDraft');
+                  if (draft) {
+                    try {
+                      const parsed = JSON.parse(draft);
+                      // Check if draft is from current rotation session
+                      if (parsed.dayLabel === (Object.keys(storage.data).filter(k => k.startsWith('workout:')).length + 1).toString().padStart(2, '0')) {
+                        setDraftSession(parsed);
+                        setIsActive(true);
+                      } else {
+                        localStorage.removeItem('cloudSessionDraft');
+                      }
+                    } catch (e) {
+                      localStorage.removeItem('cloudSessionDraft');
+                    }
+                  }
                   setTrigger(t => t + 1);
                 } catch (e) {
                   console.error('Auth error:', e);
@@ -198,26 +215,44 @@
               rotationId={currentRotationId}
               dayLabel={(totalSessions + 1).toString().padStart(2, '0')}
               lastPerf={lastPerf}
-              onBack={() => { setIsActive(false); setTrigger(t => t + 1); }}
+              onBack={() => { setIsActive(false); localStorage.removeItem('cloudSessionDraft'); setTrigger(t => t + 1); }}
               storage={storage}
               onSync={syncToCloud}
+              draftSession={draftSession}
+              setDraftSession={setDraftSession}
             />
           )}
         </div>
       );
     }
 
-    function GuidedSession({ rotationId, dayLabel, lastPerf, onBack, storage, onSync }) {
+    function GuidedSession({ rotationId, dayLabel, lastPerf, onBack, storage, onSync, draftSession, setDraftSession }) {
       const config = workoutData[rotationId];
-      const [step, setStep] = useState('warmup');
-      const [activeExId, setActiveExId] = useState(null);
-      const [progress, setProgress] = useState(config.exercises.reduce((acc, ex) => { acc[ex.id] = config.type === 'rounds' ? 0 : []; return acc; }, {}));
-      const [warmUpData, setWarmUpData] = useState(lastPerf?.warmUp || {});
-      const [showWarmUpInput, setShowWarmUpInput] = useState(false);
-      const [warmUpTime, setWarmUpTime] = useState('');
-      const [finisherData, setRunData] = useState(lastPerf?.finisher || {});
-      const [showRunInput, setShowRunInput] = useState(false);
-      const [finisherTime, setRunTime] = useState('');
+      const [step, setStep] = useState(draftSession?.step || 'warmup');
+      const [activeExId, setActiveExId] = useState(draftSession?.activeExId || null);
+      const [progress, setProgress] = useState(draftSession?.progress || config.exercises.reduce((acc, ex) => { acc[ex.id] = config.type === 'rounds' ? 0 : []; return acc; }, {}));
+      const [warmUpData, setWarmUpData] = useState(draftSession?.warmUpData || lastPerf?.warmUp || {});
+      const [showWarmUpInput, setShowWarmUpInput] = useState(draftSession?.showWarmUpInput || false);
+      const [warmUpTime, setWarmUpTime] = useState(draftSession?.warmUpTime || '');
+      const [finisherData, setRunData] = useState(draftSession?.finisherData || lastPerf?.finisher || {});
+      const [showRunInput, setShowRunInput] = useState(draftSession?.showRunInput || false);
+      const [finisherTime, setRunTime] = useState(draftSession?.finisherTime || '');
+
+      // Clear draft session flag after restoring
+      useEffect(() => {
+        if (draftSession) {
+          setDraftSession(null);
+        }
+      }, []);
+
+      // Auto-save current session to localStorage every 5 seconds
+      useEffect(() => {
+        const interval = setInterval(() => {
+          const sessionData = { rotationId, dayLabel, step, activeExId, progress, warmUpData, showWarmUpInput, warmUpTime, finisherData, showRunInput, finisherTime };
+          localStorage.setItem('cloudSessionDraft', JSON.stringify(sessionData));
+        }, 5000);
+        return () => clearInterval(interval);
+      }, [rotationId, dayLabel, step, activeExId, progress, warmUpData, showWarmUpInput, warmUpTime, finisherData, showRunInput, finisherTime]);
 
       const activeEx = config.exercises.find(e => e.id === activeExId);
       const lastExData = useMemo(() => {
