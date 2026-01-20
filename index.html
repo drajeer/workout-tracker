@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <link rel="icon" href="data:,">
-  <title>TRACKER OS - CLOUD E-READER</title>
+  <title>TRACKER OS - CLOUD TEST</title>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -39,36 +39,10 @@
     };
 
     const workoutData = {
-      1: { type: 'rounds', rounds: 3, warmUp: { name: '1km Run' }, exercises: [
-          { id: 1, name: '20m dumbbell lunges', trackWeight: true }, 
-          { id: 2, name: '20m sled push', trackWeight: true }, 
-          { id: 4, name: '15 goblet squats', trackWeight: true }, 
-          { id: 5, name: '15 box jumps' },
-          { id: 3, name: '500m rowing' } 
-      ]},
-      2: { type: 'sets', warmUp: { name: '1km Run' }, exercises: [
-          { id: 1, name: 'Leg press', sets: 4 }, 
-          { id: 2, name: 'Bench press', sets: 4 }, 
-          { id: 3, name: 'Cable row', sets: 4 }, 
-          { id: 4, name: 'Bulgarian split squats', sets: 3 }, 
-          { id: 5, name: 'Face pulls', sets: 3 }
-      ], finisher: { name: '15 min run' }},
-      3: { type: 'rounds', rounds: 3, warmUp: { name: '1km Run' }, exercises: [
-          { id: 1, name: '10 pull-ups' }, 
-          { id: 2, name: '10 dips' }, 
-          { id: 3, name: '10 barbell thrusters', trackWeight: true }, 
-          { id: 4, name: '10m sled pull', trackWeight: true }, 
-          { id: 5, name: '15 push-ups' }, 
-          { id: 6, name: '500m rowing' } 
-      ]},
-      4: { type: 'sets', warmUp: { name: '1km Run' }, exercises: [
-          { id: 1, name: 'Leg curls', sets: 4 }, 
-          { id: 2, name: 'Overhead press', sets: 4 }, 
-          { id: 3, name: 'Lat pulldown', sets: 4 }, 
-          { id: 4, name: 'Incline dumbbell press', sets: 3 }, 
-          { id: 5, name: 'Cable triceps pushdowns', sets: 3 }, 
-          { id: 6, name: 'Dumbbell curls', sets: 3 }
-      ], finisher: { name: '15 min run' }}
+      1: { type: 'rounds', rounds: 3, warmUp: { name: '1km Run' }, exercises: [{ id: 1, name: '20m dumbbell lunges', trackWeight: true }, { id: 2, name: '20m sled push', trackWeight: true }, { id: 4, name: '15 goblet squats', trackWeight: true }, { id: 5, name: '15 box jumps' }, { id: 3, name: '500m rowing' }] },
+      2: { type: 'sets', warmUp: { name: '1km Run' }, exercises: [{ id: 1, name: 'Leg press', sets: 4 }, { id: 2, name: 'Bench press', sets: 4 }, { id: 3, name: 'Cable row', sets: 4 }, { id: 4, name: 'Bulgarian split squats', sets: 3 }, { id: 5, name: 'Face pulls', sets: 3 }], finisher: { name: '15 min run' }},
+      3: { type: 'rounds', rounds: 3, warmUp: { name: '1km Run' }, exercises: [{ id: 1, name: '10 pull-ups' }, { id: 2, name: '10 dips' }, { id: 3, name: '10 barbell thrusters', trackWeight: true }, { id: 4, name: '10m sled pull', trackWeight: true }, { id: 5, name: '15 push-ups' }, { id: 6, name: '500m rowing' }] },
+      4: { type: 'sets', warmUp: { name: '1km Run' }, exercises: [{ id: 1, name: 'Leg curls', sets: 4 }, { id: 2, name: 'Overhead press', sets: 4 }, { id: 3, name: 'Lat pulldown', sets: 4 }, { id: 4, name: 'Incline dumbbell press', sets: 3 }, { id: 5, name: 'Cable triceps pushdowns', sets: 3 }, { id: 6, name: 'Dumbbell curls', sets: 3 }], finisher: { name: '15 min run' }}
     };
 
     function App() {
@@ -85,26 +59,21 @@
       const nextDayLabel = (totalSessions + 1).toString().padStart(2, '0');
       const currentRotationId = (totalSessions % 4) + 1;
 
-      // INITIALIZE GOOGLE API
       useEffect(() => {
         const init = () => {
           const client = google.accounts.oauth2.initTokenClient({
             client_id: CLIENT_ID, scope: SCOPES,
-            callback: async (resp) => {
+            callback: (resp) => {
               if (resp.access_token) {
                 localStorage.setItem('gdrive_token', resp.access_token);
                 setIsLoggedIn(true);
-                await loadCloudData(resp.access_token);
+                loadCloudData(resp.access_token);
               }
             }
           });
           setTokenClient(client);
-          
           const existingToken = localStorage.getItem('gdrive_token');
-          if (existingToken) {
-            setIsLoggedIn(true);
-            loadCloudData(existingToken);
-          }
+          if (existingToken) setIsLoggedIn(true);
         };
         const script = document.createElement('script');
         script.src = "https://accounts.google.com/gsi/client";
@@ -115,28 +84,32 @@
       const loadCloudData = async (token) => {
         setSyncStatus("PULLING...");
         try {
-          const res = await fetch('https://www.googleapis.com/drive/v3/files?q=name="workouts.json"', {
+          // List files to find workouts.json
+          const res = await fetch('https://www.googleapis.com/drive/v3/files?q=name="workouts.json" and trashed=false', {
             headers: { Authorization: `Bearer ${token}` }
           });
           const data = await res.json();
-          if (data.files?.length > 0) {
-            const fileRes = await fetch(`https://www.googleapis.com/drive/v3/files/${data.files[0].id}?alt=media`, {
+          if (data.files && data.files.length > 0) {
+            const fileId = data.files[0].id;
+            const fileRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
               headers: { Authorization: `Bearer ${token}` }
             });
             const cloudData = await fileRes.json();
+            const count = Object.keys(cloudData).filter(k => k.startsWith('w:')).length;
+            
             storage.data = cloudData;
             storage.saveLocal();
             setTrigger(t => t + 1);
             setSyncStatus("SYNCED");
+            alert(`Cloud Load Success! Found ${count} sessions.`);
           } else {
-            setSyncStatus("NEW_USER");
+            setSyncStatus("NO_FILE");
+            alert("No workouts.json found on Google Drive.");
           }
         } catch (e) { 
           setSyncStatus("ERROR"); 
-          localStorage.removeItem('gdrive_token');
-          setIsLoggedIn(false);
+          console.error(e);
         }
-        setTimeout(() => setSyncStatus("READY"), 3000);
       };
 
       const syncToCloud = async () => {
@@ -144,7 +117,7 @@
         if (!token) return;
         setSyncStatus("STAMPING...");
         try {
-          const listRes = await fetch('https://www.googleapis.com/drive/v3/files?q=name="workouts.json"', {
+          const listRes = await fetch('https://www.googleapis.com/drive/v3/files?q=name="workouts.json" and trashed=false', {
             headers: { Authorization: `Bearer ${token}` }
           });
           const listData = await listRes.json();
@@ -159,61 +132,47 @@
           });
           setSyncStatus("STAMPED ✅");
         } catch (e) { setSyncStatus("SAVE_ERROR"); }
-        setTimeout(() => setSyncStatus("READY"), 3000);
       };
 
-      if (!isLoggedIn) return (
-        <div className="h-screen flex items-center justify-center bg-white text-center p-6 border-8 border-double border-black">
-          <div className="flex flex-col items-center gap-8">
-            <h1 className="text-4xl font-black uppercase italic tracking-tighter">Initialize<br/>Cloud</h1>
-            <button onClick={() => tokenClient.requestAccessToken()} className="ereader-btn-outline px-12 py-10 text-2xl">
-              START AUTH
-            </button>
-            <p className="text-[10px] font-bold uppercase opacity-30">Connect Google Drive to load session data</p>
+      if (!isLoggedIn) {
+        return (
+          <div className="h-screen flex items-center justify-center bg-white p-6 border-8 border-double border-black">
+            <div className="flex flex-col items-center gap-6">
+              <h1 className="text-3xl font-black uppercase italic">Initialize</h1>
+              <button onClick={() => tokenClient.requestAccessToken()} className="ereader-btn-outline px-10 py-6">AUTH GOOGLE</button>
+            </div>
           </div>
-        </div>
-      );
+        );
+      }
 
       return (
         <div className="ereader-panel p-8 min-h-[90vh] flex flex-col w-full shadow-sm">
           {!isActive ? (
             <div className="flex-1 flex flex-col">
               <div className="border-b-2 border-black pb-2 mb-10 flex justify-between items-end">
-                <h1 className="text-2xl font-black uppercase">TRACKER</h1>
-                <span className="text-[10px] font-black opacity-30 uppercase tracking-widest">{syncStatus}</span>
+                <h1 className="text-xl font-black uppercase">TRACKER</h1>
+                <div className="flex gap-2">
+                   <button onClick={() => loadCloudData(localStorage.getItem('gdrive_token'))} className="text-[8px] border border-black px-1 font-bold">FORCE PULL</button>
+                   <span className="text-[10px] font-black opacity-30">{syncStatus}</span>
+                </div>
               </div>
               
               <div className="flex-1 flex flex-col justify-center items-center">
-                <button 
-                  onClick={() => setIsActive(true)} 
-                  className="ereader-btn-outline w-full py-16 text-4xl"
-                >
-                  START: DAY {nextDayLabel}
-                </button>
+                <button onClick={() => setIsActive(true)} className="ereader-btn-outline w-full py-16 text-4xl">START: DAY {nextDayLabel}</button>
+                <p className="mt-4 text-[10px] font-bold uppercase opacity-20">Current Session Rotation: {currentRotationId}</p>
               </div>
               
               <WorkoutCalendar trigger={trigger} storage={storage} />
-              
-              <button 
-                onClick={() => { if(confirm("Clear local cache and log out?")) { localStorage.clear(); window.location.reload(); } }} 
-                className="mt-6 text-[9px] font-black uppercase opacity-20 self-center"
-              >
-                Reset System
-              </button>
+              <button onClick={() => { if(confirm("Logout?")) { localStorage.clear(); window.location.reload(); } }} className="mt-6 text-[8px] font-bold uppercase opacity-20 self-center">Logout / Clear</button>
             </div>
           ) : (
-            <GuidedSession 
-              rotationId={currentRotationId}
-              dayLabel={nextDayLabel} 
-              onBack={() => { setIsActive(false); setTrigger(t => t + 1) }} 
-              storage={storage} 
-              onSync={syncToCloud}
-            />
+            <GuidedSession rotationId={currentRotationId} dayLabel={nextDayLabel} onBack={() => { setIsActive(false); setTrigger(t => t + 1) }} storage={storage} onSync={syncToCloud} />
           )}
         </div>
       );
     }
 
+    // (Remaining components WorkoutCalendar and GuidedSession stay as per previous logic)
     function WorkoutCalendar({ trigger, storage }) {
       const [viewDate, setViewDate] = useState(new Date());
       const sessionMap = useMemo(() => {
@@ -225,24 +184,15 @@
         });
         return map;
       }, [storage.data, trigger]);
-
       const daysInMonth = new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 0).getDate();
       const firstDayOfMonth = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1).getDay();
-      
       const days = [];
       for (let i = 0; i < firstDayOfMonth; i++) days.push(<div key={`pad-${i}`} className="calendar-day opacity-0" />);
       for (let d = 1; d <= daysInMonth; d++) {
         const dateObj = new Date(viewDate.getFullYear(), viewDate.getMonth(), d);
         const earnedIcon = sessionMap[dateObj.toDateString()];
-        days.push(
-          <div key={d} className="calendar-day">
-            {earnedIcon ? (
-              <img src={`file:///Users/ashajeer/Library/CloudStorage/GoogleDrive-mrajeer@gmail.com/My%20Drive/WorkoutApp/DAY%2001@3x.png`} className="day-mini-icon" />
-            ) : ( <span className="opacity-10">{d}</span> )}
-          </div>
-        );
+        days.push(<div key={d} className="calendar-day">{earnedIcon ? <img src={`file:///Users/ashajeer/Library/CloudStorage/GoogleDrive-mrajeer@gmail.com/My%20Drive/WorkoutApp/DAY%20ICONS/DAY%2001@3x.png`} className="day-mini-icon" /> : <span className="opacity-10">{d}</span>}</div>);
       }
-
       return (
         <div className="mt-auto border-t-2 border-black pt-6">
           <div className="flex justify-between items-center mb-4 uppercase font-black text-[11px]">
@@ -264,30 +214,21 @@
         acc[ex.id] = config.type === 'rounds' ? 0 : [];
         return acc;
       }, {}));
-
-      useEffect(() => {
-        const interval = setInterval(() => setTimer(t => t + 1), 1000);
-        return () => clearInterval(interval);
-      }, []);
-
+      useEffect(() => { const interval = setInterval(() => setTimer(t => t + 1), 1000); return () => clearInterval(interval); }, []);
       const activeEx = config.exercises.find(e => e.id === activeExId);
       const currentDone = Object.values(progress).flat().length;
       const totalPossible = config.exercises.reduce((a, b) => a + (config.type === 'rounds' ? config.rounds : b.sets), 0);
-
       const logAttempt = (status) => {
         const next = config.type === 'rounds' ? progress[activeExId] + 1 : [...progress[activeExId], status];
         setProgress({ ...progress, [activeExId]: next });
-        const isDone = config.type === 'rounds' ? next >= config.rounds : next.length >= activeEx.sets;
-        if (isDone) setActiveExId(null);
+        if (config.type === 'rounds' ? next >= config.rounds : next.length >= activeEx.sets) setActiveExId(null);
       };
-
       return (
         <div className="flex flex-col gap-6 flex-1">
           <div className="flex justify-between items-center text-[10px] font-bold border-b border-black pb-2 uppercase tracking-widest">
             <span>D{dayLabel} // S{rotationId} // {Math.floor(timer/60)}M</span>
             <button onClick={onBack} className="underline">Abort</button>
           </div>
-
           {step === 'warmup' && (
             <div className="flex-1 flex flex-col justify-center gap-8 text-center">
               <h2 className="text-4xl font-black uppercase italic">Warm Up</h2>
@@ -295,16 +236,12 @@
               <button onClick={() => setStep('hub')} className="ereader-btn-deep py-6 text-xl">Enter Hub</button>
             </div>
           )}
-
           {step === 'hub' && !activeExId && (
             <div className="flex-1 flex flex-col gap-4">
               <div className="space-y-3">
                 {config.exercises.map(ex => (
                   <button key={ex.id} onClick={() => setActiveExId(ex.id)} className="w-full text-left bg-white p-3 border-2 border-black">
-                    <div className="flex justify-between font-black uppercase text-[10px] mb-2">
-                      <span>{ex.name}</span>
-                      <span>{config.type === 'rounds' ? `${progress[ex.id]}/${config.rounds}` : `${progress[ex.id].length}/${ex.sets}`}</span>
-                    </div>
+                    <div className="flex justify-between font-black uppercase text-[10px] mb-2"><span>{ex.name}</span><span>{config.type === 'rounds' ? `${progress[ex.id]}/${config.rounds}` : `${progress[ex.id].length}/${ex.sets}`}</span></div>
                     <div className="flex gap-1">
                       {Array.from({ length: config.type === 'rounds' ? config.rounds : ex.sets }).map((_, i) => {
                         const s = config.type === 'rounds' ? (i < progress[ex.id]) : progress[ex.id][i];
@@ -314,44 +251,29 @@
                   </button>
                 ))}
               </div>
-              <div className="mt-auto flex flex-col items-center opacity-20"><img src="image_c8dcbd.png" className="w-24 grayscale" /></div>
-              {currentDone >= totalPossible && (
-                <button onClick={() => setStep(config.finisher ? 'finisher' : 'save')} className="ereader-btn-deep py-5 text-xl">Finalize</button>
-              )}
+              {currentDone >= totalPossible && <button onClick={() => setStep(config.finisher ? 'finisher' : 'save')} className="ereader-btn-deep py-5 text-xl mt-auto">Finalize</button>}
             </div>
           )}
-
           {step === 'hub' && activeExId && (
             <div className="flex-1 flex flex-col gap-8 text-center">
-              <div className="flex flex-col gap-4">
-                <h2 className="text-2xl font-black uppercase italic">{activeEx.name}</h2>
-                <div className="flex gap-2 px-4">
-                   {Array.from({ length: config.type === 'rounds' ? config.rounds : activeEx.sets }).map((_, i) => {
-                     const s = config.type === 'rounds' ? (i < progress[activeExId]) : progress[activeExId][i];
-                     return <div key={i} className={`h-3 flex-1 border-2 border-black ${s === 'success' || s === true ? 'bg-black' : s === 'failed' ? 'bar-failed' : ''}`} />;
-                   })}
-                </div>
+              <h2 className="text-2xl font-black uppercase italic">{activeEx.name}</h2>
+              <div className="flex gap-2 px-4">
+                 {Array.from({ length: config.type === 'rounds' ? config.rounds : activeEx.sets }).map((_, i) => {
+                   const s = config.type === 'rounds' ? (i < progress[activeExId]) : progress[activeExId][i];
+                   return <div key={i} className={`h-3 flex-1 border-2 border-black ${s === 'success' || s === true ? 'bg-black' : s === 'failed' ? 'bar-failed' : ''}`} />;
+                 })}
               </div>
-              <div className="flex-1 flex flex-col justify-center border-y-4 border-black bg-white font-black py-12">
-                <p className="text-4xl uppercase">{config.type === 'rounds' ? `Perform Round` : `Log Set`}</p>
-                {activeEx.trackWeight && <p className="text-sm opacity-40 mt-2">Track weight in notes</p>}
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <button onClick={() => logAttempt('failed')} className="border-4 border-black font-black uppercase py-4 text-xs">Failed</button>
-                <button onClick={() => logAttempt('success')} className="ereader-btn-deep py-4 text-xl">Success</button>
-              </div>
+              <div className="flex-1 flex flex-col justify-center border-y-4 border-black bg-white font-black py-12"><p className="text-4xl uppercase">{config.type === 'rounds' ? `Perform Round` : `Log Set`}</p></div>
+              <div className="grid grid-cols-2 gap-4"><button onClick={() => logAttempt('failed')} className="border-4 border-black font-black uppercase py-4 text-xs">Failed</button><button onClick={() => logAttempt('success')} className="ereader-btn-deep py-4 text-xl">Success</button></div>
             </div>
           )}
-
           {(step === 'finisher' || step === 'save') && (
             <div className="flex-1 flex flex-col justify-center gap-8 text-center">
               <h2 className="text-5xl font-black uppercase italic">{config.finisher ? 'Finisher' : 'Complete'}</h2>
               {config.finisher && <div className="border-4 border-black p-8 bg-white uppercase font-black text-xl">{config.finisher.name}</div>}
               <button onClick={() => {
                 storage.data[`w:${Date.now()}`] = JSON.stringify({ date: new Date().toISOString(), dayLabel: dayLabel });
-                storage.saveLocal();
-                onSync();
-                onBack();
+                storage.saveLocal(); onSync(); onBack();
               }} className="ereader-btn-deep py-8 text-2xl font-black italic">STAMP DAY {dayLabel}</button>
             </div>
           )}
