@@ -208,10 +208,7 @@
                 </button>
               </div>
               <WorkoutCalendar storage={storage} trigger={trigger} />
-              <div className="flex gap-4 justify-center mt-8">
-                <button onClick={async () => { if(confirm("Permanently clear history?")) { const draft = localStorage.getItem('cloudSessionDraft'); storage.data = {}; await syncToCloud(); if (draft) localStorage.setItem('cloudSessionDraft', draft); setTrigger(t => t + 1); } }} className="text-[9px] font-black uppercase opacity-20 hover:opacity-100 transition-opacity">Clear History</button>
-                <button onClick={() => { if(confirm("Logout?")) { setIsLoggedIn(false); } }} className="text-[9px] font-black uppercase opacity-20 hover:opacity-100 transition-opacity">Logout</button>
-              </div>
+              <button onClick={async () => { if(confirm("Permanently clear history?")) { const draft = localStorage.getItem('cloudSessionDraft'); storage.data = {}; await syncToCloud(); if (draft) localStorage.setItem('cloudSessionDraft', draft); setTrigger(t => t + 1); } }} className="mt-8 text-[9px] font-black uppercase opacity-20 hover:opacity-100 transition-opacity self-center">Clear Cache</button>
             </div>
           ) : (
             <GuidedSession
