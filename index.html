@@ -47,19 +47,24 @@
 
       async loadFromCloud() {
         try {
-          const res = await fetch('https://www.googleapis.com/drive/v3/files?q=name="workouts.json"', {
+          const res = await fetch('https://www.googleapis.com/drive/v3/files?q=name="workouts.json" and trashed=false&spaces=drive&pageSize=10', {
             headers: { Authorization: `Bearer ${this.token}` }
           });
 
           if (res.status === 401) throw new Error('Unauthorized');
 
           const data = await res.json();
+          console.log('Search results:', data);
           if (data.files?.length > 0) {
             this.fileId = data.files[0].id;
+            console.log('Found workouts.json with ID:', this.fileId);
             const fileRes = await fetch(`https://www.googleapis.com/drive/v3/files/${this.fileId}?alt=media`, {
               headers: { Authorization: `Bearer ${this.token}` }
             });
             this.data = await fileRes.json();
+            console.log('Loaded data:', this.data);
+          } else {
+            console.log('No workouts.json file found');
           }
         } catch (e) {
           console.error('Cloud load error:', e);
