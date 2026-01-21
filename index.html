@@ -114,6 +114,7 @@
       const [isActive, setIsActive] = useState(false);
       const [trigger, setTrigger] = useState(0);
       const [draftSession, setDraftSession] = useState(null);
+      const [fileStatus, setFileStatus] = useState(null);
 
       const totalSessions = useMemo(() => {
         return Object.keys(storage.data).filter(k => k.startsWith('workout:')).length;
@@ -146,6 +147,12 @@
                   setIsLoading(true);
                   await storage.init(resp.access_token);
                   setIsLoggedIn(true);
+                  // Check if workouts.json was found
+                  if (storage.fileId) {
+                    setFileStatus('found');
+                  } else {
+                    setFileStatus('not-found');
+                  }
                   // Check for draft session on re-login
                   const draft = localStorage.getItem('cloudSessionDraft');
                   if (draft) {
@@ -165,6 +172,7 @@
                   setTrigger(t => t + 1);
                 } catch (e) {
                   console.error('Auth error:', e);
+                  setFileStatus('error');
                 }
                 setIsLoading(false);
               }
@@ -209,13 +217,20 @@
             <div className="flex-1 flex flex-col">
               <div className="flex justify-between items-center mb-4">
                 <h1 className="text-xl font-black uppercase border-b-2 border-black pb-2 tracking-widest text-center italic flex-1">Tracker Cloud</h1>
-                <div className="text-[9px] font-black uppercase opacity-60 px-3 py-1 border-2 border-black bg-white">
-                  Loaded: {totalSessions}
+                <div className="flex flex-col gap-1">
+                  <div className="text-[9px] font-black uppercase opacity-60 px-3 py-1 border-2 border-black bg-white">
+                    Loaded: {totalSessions}
+                  </div>
+                  {fileStatus && (
+                    <div className={`text-[8px] font-black uppercase px-2 py-0.5 border border-black ${fileStatus === 'found' ? 'bg-green-100' : fileStatus === 'not-found' ? 'bg-yellow-100' : 'bg-red-100'}`}>
+                      {fileStatus === 'found' ? '✓ workouts.json found' : fileStatus === 'not-found' ? '○ new file (will create on save)' : '✗ error loading'}
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="flex-1 flex flex-col justify-center items-center">
                 <button onClick={() => setIsActive(true)} className="ereader-btn-outline w-full py-16 text-4xl uppercase flex flex-col items-center justify-center gap-3">
-                  <span>STARTTT: DAY {(totalSessions + 1).toString().padStart(2, '0')}</span>
+                  <span>START: DAY {(totalSessions + 1).toString().padStart(2, '0')}</span>
                   <span className="text-[10px] font-black uppercase opacity-30 tracking-widest">SESSION {currentRotationId}</span>
                 </button>
               </div>
