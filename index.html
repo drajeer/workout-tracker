@@ -150,8 +150,10 @@
                   // Check if workouts.json was found
                   if (storage.fileId) {
                     setFileStatus('found');
+                    alert('✓ workouts.json found - Loaded ' + Object.keys(storage.data).filter(k => k.startsWith('workout:')).length + ' workouts');
                   } else {
                     setFileStatus('not-found');
+                    alert('○ workouts.json not found - New file will be created when you save');
                   }
                   // Check for draft session on re-login
                   const draft = localStorage.getItem('cloudSessionDraft');
