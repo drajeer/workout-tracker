@@ -1,312 +1,645 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <link rel="icon" href="data:,">
-  <title>TRACKER OS - PERFORMANCE EDITION (Cloud)</title>
-  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script async defer src="https://accounts.google.com/gsi/client"></script>
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
-    :root { --bg: #ffffff; --screen: #f2f2f2; --mid: #e0e0e0; --deep: #000000; font-family: 'Inter', sans-serif; }
-    body { background-color: var(--bg); color: var(--deep); overscroll-behavior-y: contain; }
-    .ereader-panel { background-color: var(--screen); border: 1px solid var(--deep); border-radius: 4px; }
-    .ereader-btn-outline { background-color: transparent; border: 4px solid var(--deep); color: var(--deep); text-transform: uppercase; font-weight: 900; transition: all 0.2s; }
-    .calendar-day { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; font-size: 8px; font-weight: 700; border: 1px solid rgba(0,0,0,0.05); background: white; }
-    .day-mini-icon { width: 90%; height: 90%; object-fit: contain; image-rendering: pixelated; }
-    .ereader-btn-deep { background-color: var(--deep); color: var(--bg); text-transform: uppercase; font-weight: 700; border-radius: 2px; }
-    ::-webkit-scrollbar { width: 0px; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <link rel="icon" href="data:,">
+    <title>TRACKER OS - PERFORMANCE EDITION (Local)</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+        :root { --bg: #f2f2f2; --screen: #f2f2f2; --mid: #e0e0e0; --deep: #000000; font-family: 'Inter', sans-serif; }
+        body { background-color: var(--bg); color: var(--deep); overscroll-behavior-y: contain; }
+        .ereader-panel { background-color: var(--screen); }
+        .ereader-btn-outline { background-color: transparent; border: 4px solid var(--deep); color: var(--deep); text-transform: uppercase; font-weight: 900; transition: all 0.2s; }
+        .calendar-day { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; font-size: 8px; font-weight: 700; border: 1px solid rgba(0,0,0,0.05); background: white; cursor: pointer; transition: all 0.2s; }
+        .calendar-day:hover { background: #f0f0f0; }
+        .day-mini-icon { width: 90%; height: 90%; object-fit: contain; image-rendering: pixelated; }
+        .ereader-btn-deep { background-color: var(--deep); color: var(--bg); text-transform: uppercase; font-weight: 700; border-radius: 2px; }
+        ::-webkit-scrollbar { width: 0px; }
+        .timer-display { font-variant-numeric: tabular-nums; }
+    </style>
 </head>
 <body class="p-4 flex justify-center">
-  <div id="root" class="w-full max-w-md"></div>
+<div id="root" class="w-full max-w-md"></div>
 
-  <script type="text/babel">
+<script type="text/babel">
     const { useState, useEffect, useMemo } = React;
 
-    // --- GOOGLE DRIVE CONFIG ---
-    const CLIENT_ID = '993686805304-ejcjgvg9or29fi8e7gsek1kqljob2hok.apps.googleusercontent.com';
-    const SCOPES = 'https://www.googleapis.com/auth/drive.file';
-
-    // --- CLOUD STORAGE CLASS ---
-    class CloudStorage {
+    class LocalStorage {
       constructor() {
         this.data = {};
-        this.token = null;
-        this.fileId = null;
       }
 
-      async init(token) {
-        this.token = token;
-        await this.loadFromCloud();
+      async init() {
+        await this.loadFromFile();
       }
 
-      async loadFromCloud() {
+      async loadFromFile() {
         try {
-          const res = await fetch('https://www.googleapis.com/drive/v3/files?q=name="workouts.json" and trashed=false&spaces=drive&pageSize=10', {
-            headers: { Authorization: `Bearer ${this.token}` }
-          });
-
-          if (res.status === 401) throw new Error('Unauthorized');
-
-          const data = await res.json();
-          console.log('Search results:', data);
-          if (data.files?.length > 0) {
-            this.fileId = data.files[0].id;
-            console.log('Found workouts.json with ID:', this.fileId);
-            const fileRes = await fetch(`https://www.googleapis.com/drive/v3/files/${this.fileId}?alt=media`, {
-              headers: { Authorization: `Bearer ${this.token}` }
-            });
-            this.data = await fileRes.json();
-            // Clean up double-stringified data if needed
-            Object.keys(this.data).forEach(key => {
-              if (typeof this.data[key] === 'string') {
-                try {
-                  this.data[key] = JSON.parse(this.data[key]);
-                } catch (e) {
-                  console.warn(`Could not parse ${key}, keeping as is`);
-                }
-              }
-            });
-            console.log('Loaded data:', this.data);
+          if (window.Android && window.Android.loadWorkouts) {
+            const jsonString = window.Android.loadWorkouts();
+            this.data = JSON.parse(jsonString);
+            console.log('✓ Data loaded from Android storage:', Object.keys(this.data).length, 'entries');
           } else {
-            console.log('No workouts.json file found');
+            console.warn('Android bridge not available, trying fetch fallback');
+            const res = await fetch('workouts.json');
+            if (!res.ok) throw new Error('File not found');
+            this.data = await res.json();
+            console.log('✓ Data loaded from fetch:', Object.keys(this.data).length, 'entries');
           }
         } catch (e) {
-          console.error('Cloud load error:', e);
-          throw e;
+          console.error('✗ Load error:', e);
+          this.data = {};
         }
       }
 
-      async saveToCloud() {
-        if (!this.token) throw new Error('Not authenticated');
-
+      async saveToFile() {
         try {
-          const metadata = { name: 'workouts.json', mimeType: 'application/json' };
-          const form = new FormData();
-          form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
-          form.append('file', new Blob([JSON.stringify(this.data)], { type: 'application/json' }));
-
-          const url = this.fileId
-            ? `https://www.googleapis.com/upload/drive/v3/files/${this.fileId}?uploadType=multipart`
-            : 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
-
-          const res = await fetch(url, {
-            method: this.fileId ? 'PATCH' : 'POST',
-            headers: { Authorization: `Bearer ${this.token}` },
-            body: form
-          });
-
-          if (!res.ok) throw new Error('Save failed');
-
-          if (!this.fileId) {
-            const resData = await res.json();
-            this.fileId = resData.id;
+          const jsonString = JSON.stringify(this.data);
+          if (window.Android && window.Android.saveWorkouts) {
+            const success = window.Android.saveWorkouts(jsonString);
+            if (!success) {
+              throw new Error('Android save failed');
+            }
+            console.log('✓ Data saved to Android file system:', Object.keys(this.data).length, 'entries');
+          } else {
+            console.warn('✗ Android bridge not available');
           }
         } catch (e) {
-          console.error('Cloud save error:', e);
+          console.error('✗ Save error:', e);
           throw e;
         }
       }
     }
 
-    const workoutData = {
-      1: { type: 'rounds', rounds: 3, warmUp: { name: '1km Run' }, exercises: [{ id: 1, name: '20m dumbbell lunges', trackWeight: true }, { id: 2, name: '20m sled push', trackWeight: true }, { id: 4, name: '15 goblet squats', trackWeight: true }, { id: 5, name: '15 box jumps' }, { id: 3, name: '500m rowing' }] },
-      2: { type: 'sets', warmUp: { name: '1km Run' }, exercises: [{ id: 1, name: 'Leg press', sets: 4, targetReps: 10 }, { id: 2, name: 'Bench press', sets: 4, targetReps: 12 }, { id: 3, name: 'Cable row', sets: 4, targetReps: 10 }, { id: 4, name: 'Bulgarian split squats', sets: 3, targetReps: 8 }, { id: 5, name: 'Face pulls', sets: 3, targetReps: 10 }], finisher: { name: '15 min' }},
-      3: { type: 'rounds', rounds: 3, warmUp: { name: '1km Run' }, exercises: [{ id: 1, name: '10 pull-ups' }, { id: 2, name: '10 dips' }, { id: 3, name: '10 barbell thrusters', trackWeight: true }, { id: 4, name: '10m sled pull', trackWeight: true }, { id: 5, name: '15 push-ups' }, { id: 6, name: '500m rowing' }] },
-      4: { type: 'sets', warmUp: { name: '1km Run' }, exercises: [{ id: 1, name: 'Leg curls', sets: 4, targetReps: 10 }, { id: 2, name: 'Overhead press', sets: 4, targetReps: 12 }, { id: 3, name: 'Lat pulldown', sets: 4, targetReps: 10 }, { id: 4, name: 'Incline dumbbell press', sets: 3, targetReps: 8 }, { id: 5, name: 'Cable triceps pushdowns', sets: 3, targetReps: 10 }, { id: 6, name: 'Dumbbell curls', sets: 3, targetReps: 10 }], finisher: { name: '15 min' }}
-    };
+    // Progression arrays and workout config are now loaded from user configuration file
 
     function App() {
-      const [isLoggedIn, setIsLoggedIn] = useState(false);
       const [isLoading, setIsLoading] = useState(true);
-      const [tokenClient, setTokenClient] = useState(null);
-      const [storage] = useState(new CloudStorage());
+      const [configLoaded, setConfigLoaded] = useState(false);
+      const [configName, setConfigName] = useState(null);
+      const [configError, setConfigError] = useState(null);
+      const [progressionArrays, setProgressionArrays] = useState(null);
+      const [storage] = useState(new LocalStorage());
       const [isActive, setIsActive] = useState(false);
       const [trigger, setTrigger] = useState(0);
       const [draftSession, setDraftSession] = useState(null);
-      const [fileStatus, setFileStatus] = useState(null);
+      const [viewingSession, setViewingSession] = useState(null);
+      const [retrospectiveDate, setRetrospectiveDate] = useState(null);
+      const [retrospectiveRotationId, setRetrospectiveRotationId] = useState(null);
+
+      // State management for progression values - loaded from storage
+      const [progressionState, setProgressionState] = useState(null);
 
       const totalSessions = useMemo(() => {
-        return Object.keys(storage.data).filter(k => k.startsWith('workout:')).length;
-      }, [storage.data, trigger]);
-
-      const currentRotationId = (totalSessions % 4) + 1;
-
-      const lastPerf = useMemo(() => {
-        const history = Object.values(storage.data)
-          .map(v => {
+        // Count only non-historic workouts for current rotation calculation
+        return Object.entries(storage.data)
+          .filter(([k, v]) => {
+            if (!k.startsWith('workout:')) return false;
             try {
-              return typeof v === 'string' ? JSON.parse(v) : v;
+              const entry = typeof v === 'string' ? JSON.parse(v) : v;
+              return !entry.isHistoric; // Exclude historic entries
             } catch (e) {
-              return null;
+              return true; // Count unparseable entries as real
             }
           })
-          .filter(v => v && v.day === `Day ${currentRotationId}`)
-          .sort((a, b) => new Date(b.date) - new Date(a.date));
-        return history[0] || null;
-      }, [storage.data, currentRotationId]);
+          .length;
+      }, [storage.data, trigger]);
+
+      const historicSessions = useMemo(() => {
+        // Count historic workout entries for dayLabel calculation
+        return Object.entries(storage.data)
+          .filter(([k, v]) => {
+            if (!k.startsWith('workout:')) return false;
+            try {
+              const entry = typeof v === 'string' ? JSON.parse(v) : v;
+              return entry.isHistoric === true;
+            } catch (e) {
+              return false;
+            }
+          })
+          .length;
+      }, [storage.data, trigger]);
+
+      const currentRotationId = (totalSessions % 4) || 4;
+
+      const lastPerf = useMemo(() => {
+        if (!retrospectiveRotationId) {
+          const history = Object.values(storage.data)
+            .map(v => {
+              try {
+                return typeof v === 'string' ? JSON.parse(v) : v;
+              } catch (e) {
+                return null;
+              }
+            })
+            .filter(v => v && v.day === `Routine ${currentRotationId}`)
+            .sort((a, b) => new Date(b.date) - new Date(a.date));
+          return history[0] || null;
+        } else {
+          const history = Object.values(storage.data)
+            .map(v => {
+              try {
+                return typeof v === 'string' ? JSON.parse(v) : v;
+              } catch (e) {
+                return null;
+              }
+            })
+            .filter(v => v && v.day === `Routine ${retrospectiveRotationId}`)
+            .sort((a, b) => new Date(b.date) - new Date(a.date));
+          return history[0] || null;
+        }
+      }, [storage.data, currentRotationId, retrospectiveRotationId]);
+
+      // progressionState is now the ONLY source of truth
+      // No more calculating progression from history
 
       useEffect(() => {
-        const init = () => {
-          const client = google.accounts.oauth2.initTokenClient({
-            client_id: CLIENT_ID,
-            scope: SCOPES,
-            callback: async (resp) => {
-              if (resp.access_token) {
-                try {
-                  setIsLoading(true);
-                  await storage.init(resp.access_token);
-                  setIsLoggedIn(true);
-                  // Check if workouts.json was found
-                  if (storage.fileId) {
-                    setFileStatus('found');
-                    alert('✓ workouts.json found - Loaded ' + Object.keys(storage.data).filter(k => k.startsWith('workout:')).length + ' workouts');
-                  } else {
-                    setFileStatus('not-found');
-                    alert('○ workouts.json not found - New file will be created when you save');
-                  }
-                  // Check for draft session on re-login
-                  const draft = localStorage.getItem('cloudSessionDraft');
-                  if (draft) {
-                    try {
-                      const parsed = JSON.parse(draft);
-                      // Check if draft is from current rotation session
-                      if (parsed.dayLabel === (Object.keys(storage.data).filter(k => k.startsWith('workout:')).length + 1).toString().padStart(2, '0')) {
-                        setDraftSession(parsed);
-                        setIsActive(true);
-                      } else {
-                        localStorage.removeItem('cloudSessionDraft');
-                      }
-                    } catch (e) {
-                      localStorage.removeItem('cloudSessionDraft');
-                    }
-                  }
-                  setTrigger(t => t + 1);
-                } catch (e) {
-                  console.error('Auth error:', e);
-                  setFileStatus('error');
-                }
-                setIsLoading(false);
-              }
-            }
-          });
-          setTokenClient(client);
-        };
-        const script = document.createElement('script');
-        script.src = "https://accounts.google.com/gsi/client";
-        script.onload = init;
-        document.head.appendChild(script);
-        setIsLoading(false);
-      }, []);
+        // Load draft session after config is loaded
+        if (!configLoaded) return;
 
-      const syncToCloud = async () => {
+        const draft = localStorage.getItem('localSessionDraft');
+        if (draft) {
+          try {
+            const parsed = JSON.parse(draft);
+            if (parsed.dayLabel === (Object.keys(storage.data).filter(k => k.startsWith('workout:')).length + 1).toString().padStart(2, '0')) {
+              setDraftSession(parsed);
+              setIsActive(true);
+            } else {
+              localStorage.removeItem('localSessionDraft');
+            }
+          } catch (e) {
+            localStorage.removeItem('localSessionDraft');
+          }
+        }
+
+        setTrigger(t => t + 1);
+      }, [configLoaded]);
+
+      const syncToFile = async () => {
         try {
-          await storage.saveToCloud();
+          await storage.saveToFile();
           setTrigger(t => t + 1);
         } catch (e) {
           console.error('Sync error:', e);
         }
       };
 
-      const clearCache = () => {
-        if (confirm('Clear all local cache? This will remove draft sessions but NOT affect cloud data.')) {
-          localStorage.removeItem('cloudSessionDraft');
-          setTrigger(t => t + 1);
+      const handleConfigFileLoad = async (event) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        try {
+          const text = await file.text();
+          const config = JSON.parse(text);
+
+          // Validate config structure
+          if (!config.version || !config.initialProgressionState || !config.progressionArrays) {
+            throw new Error('Invalid config file: missing required fields (version, initialProgressionState, progressionArrays)');
+          }
+
+          // Set config data
+          setConfigName(config.name || 'Loaded Configuration');
+          setProgressionArrays(config.progressionArrays);
+
+          // Initialize progression state from config
+          setProgressionState(config.initialProgressionState);
+          storage.data['progression:state'] = JSON.stringify(config.initialProgressionState);
+
+          // Load workout history from config if it exists
+          if (config.workouts && typeof config.workouts === 'object') {
+            Object.entries(config.workouts).forEach(([key, workout]) => {
+              storage.data[key] = typeof workout === 'string' ? workout : JSON.stringify(workout);
+            });
+            console.log('✓ Loaded', Object.keys(config.workouts).length, 'workouts from config');
+          }
+
+          // Try to load existing workouts from file as fallback
+          try {
+            await storage.init();
+          } catch (e) {
+            console.log('No existing workout file:', e.message);
+          }
+
+          setConfigLoaded(true);
+          setConfigError(null);
+          setIsLoading(false);
+        } catch (e) {
+          const errorMsg = e instanceof SyntaxError
+            ? 'Invalid JSON file'
+            : e.message;
+          setConfigError(errorMsg);
+          console.error('Config load error:', e);
         }
       };
 
-      if (!isLoggedIn) return (
-        <div className="h-screen flex items-center justify-center bg-white p-6 border-8 border-double border-black">
-          <button onClick={() => tokenClient?.requestAccessToken()} className="ereader-btn-outline px-10 py-6 cursor-pointer text-center font-black" disabled={isLoading}>
-            {isLoading ? 'LOADING...' : 'LOAD CLOUD DATA'}
-          </button>
-        </div>
-      );
+      const exportData = () => {
+        const exportData = {
+          name: configName,
+          progressionArrays,
+          initialProgressionState: progressionState,
+          workouts: {}
+        };
+
+        // Export all workout history
+        Object.keys(storage.data).forEach(key => {
+          if (key.startsWith('workout:')) {
+            try {
+              const workout = typeof storage.data[key] === 'string'
+                ? JSON.parse(storage.data[key])
+                : storage.data[key];
+              exportData.workouts[key] = workout;
+            } catch (e) {
+              console.error('Error parsing workout:', e);
+            }
+          }
+        });
+
+        const dataStr = JSON.stringify(exportData, null, 2);
+        const dataBlob = new Blob([dataStr], { type: 'application/json' });
+        const url = URL.createObjectURL(dataBlob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${configName?.replace(/\s+/g, '-')}-backup-${new Date().toISOString().split('T')[0]}.json`;
+        link.click();
+        URL.revokeObjectURL(url);
+      };
+
+      const handleDateClick = (date) => {
+        setRetrospectiveDate(date);
+      };
+
+      const handleDeleteWorkout = async (date) => {
+        const dateStr = date.toDateString();
+        const entryKey = Object.keys(storage.data).find(key => {
+          const workout = typeof storage.data[key] === 'string' ? JSON.parse(storage.data[key]) : storage.data[key];
+          return new Date(workout.date).toDateString() === dateStr;
+        });
+
+        if (entryKey) {
+          // Before deleting, undo any successes from this workout
+          const workoutToDelete = typeof storage.data[entryKey] === 'string'
+            ? JSON.parse(storage.data[entryKey])
+            : storage.data[entryKey];
+
+          if (workoutToDelete.exercises && workoutToDelete.exercises.length > 0 && progressionState) {
+            // Extract session ID from day label (e.g., "Day 1" -> Session 1)
+            const dayMatch = workoutToDelete.day.match(/\d+/);
+            const sessionId = dayMatch ? parseInt(dayMatch[0]) % 4 : null;
+            const actualSessionId = sessionId === 0 ? 4 : sessionId;
+
+            if (actualSessionId) {
+              const newState = JSON.parse(JSON.stringify(progressionState));
+              const sessionKey = `routine${actualSessionId}`;
+
+              workoutToDelete.exercises.forEach(ex => {
+                if (ex.completedSets && Array.isArray(ex.completedSets)) {
+                  ex.completedSets.forEach((completedSet, setIndex) => {
+                    if (completedSet.status === 'success') {
+                      const setNum = setIndex + 1; // Convert 0-indexed to 1-indexed
+                      if (newState[sessionKey]?.exercises[ex.id]?.sets[setNum]) {
+                        newState[sessionKey].exercises[ex.id].sets[setNum].consecutiveSuccesses =
+                          Math.max(0, newState[sessionKey].exercises[ex.id].sets[setNum].consecutiveSuccesses - 1);
+                        console.log(`Removed success: ${ex.name} Set ${setNum} now has ${newState[sessionKey].exercises[ex.id].sets[setNum].consecutiveSuccesses} successes`);
+                      }
+                    }
+                  });
+                }
+              });
+
+              setProgressionState(newState);
+              storage.data['progression:state'] = JSON.stringify(newState);
+            }
+          }
+
+          delete storage.data[entryKey];
+          await syncToFile();
+        }
+      };
+
+
+      if (!configLoaded) {
+        return (
+          <div className="h-screen flex flex-col items-center justify-center bg-gray-200 p-8">
+            <div className="flex flex-col gap-6 max-w-md w-full">
+              <h1 className="text-3xl font-black uppercase text-center">TRACKER</h1>
+              <p className="text-sm text-center opacity-70">Load your workout configuration to get started</p>
+
+              {configError && (
+                <div className="bg-red-200 border-2 border-red-400 p-4 rounded">
+                  <p className="text-sm font-bold text-red-900">Error:</p>
+                  <p className="text-xs text-red-800">{configError}</p>
+                </div>
+              )}
+
+              <div className="flex flex-col gap-3">
+                <label className="flex flex-col gap-2">
+                  <span className="text-xs font-black uppercase">Select Configuration File:</span>
+                  <input
+                    type="file"
+                    accept=".json"
+                    onChange={handleConfigFileLoad}
+                    className="ereader-btn-outline p-4 text-sm cursor-pointer"
+                  />
+                </label>
+                <p className="text-xs opacity-60 text-center">
+                  Use example-config.json as a template to create your own
+                </p>
+              </div>
+            </div>
+          </div>
+        );
+      }
 
       return (
-        <div className="ereader-panel p-8 min-h-[90vh] flex flex-col w-full shadow-sm">
+        <div className="ereader-panel p-8 min-h-screen flex flex-col w-full">
           {!isActive ? (
             <div className="flex-1 flex flex-col">
-              <div className="flex justify-between items-center mb-4">
-                <h1 className="text-xl font-black uppercase border-b-2 border-black pb-2 tracking-widest text-center italic flex-1">Tracker Cloud</h1>
-                <div className="flex flex-col gap-1">
-                  <div className="text-[9px] font-black uppercase opacity-60 px-3 py-1 border-2 border-black bg-white">
-                    Loaded: {totalSessions}
-                  </div>
-                  {fileStatus && (
-                    <div className={`text-[8px] font-black uppercase px-2 py-0.5 border border-black ${fileStatus === 'found' ? 'bg-green-100' : fileStatus === 'not-found' ? 'bg-yellow-100' : 'bg-red-100'}`}>
-                      {fileStatus === 'found' ? '✓ workouts.json found' : fileStatus === 'not-found' ? '○ new file (will create on save)' : '✗ error loading'}
-                    </div>
-                  )}
+              <div className="flex justify-between items-start mb-10 border-b-2 border-black pb-2">
+                <div>
+                  <h1 className="text-xs font-black lowercase tracking-widest text-left italic">tracker.beta1</h1>
+                  {configName && <p className="text-[9px] opacity-60 mt-1">{configName}</p>}
                 </div>
-              </div>
-              <div className="flex-1 flex flex-col justify-center items-center">
-                <button onClick={() => setIsActive(true)} className="ereader-btn-outline w-full py-16 text-4xl uppercase flex flex-col items-center justify-center gap-3">
-                  <span>START: DAY {(totalSessions + 1).toString().padStart(2, '0')}</span>
-                  <span className="text-[10px] font-black uppercase opacity-30 tracking-widest">SESSION {currentRotationId}</span>
+                <button
+                  onClick={exportData}
+                  className="text-[9px] font-black uppercase border-2 border-black px-2 py-1 hover:bg-black hover:text-white transition-colors"
+                  title="Export configuration and workout history"
+                >
+                  EXPORT
                 </button>
               </div>
-              <WorkoutCalendar storage={storage} trigger={trigger} />
-              <div className="flex flex-col gap-2 mt-8">
-                <button onClick={clearCache} className="text-[9px] font-black uppercase opacity-70 hover:opacity-100 transition-opacity self-center">Clear Cache</button>
-                <button onClick={() => { if(confirm("Logout?")) { setIsLoggedIn(false); } }} className="text-[9px] font-black uppercase opacity-70 hover:opacity-100 transition-opacity self-center">Logout</button>
+              <div className="flex flex-col items-center pt-4">
+                <button onClick={() => setIsActive(true)} className="ereader-btn-outline w-full py-12 text-3xl uppercase flex flex-col items-center justify-center gap-2">
+                  <span><span className="italic">START</span>: SESSION {(historicSessions + totalSessions + 1).toString().padStart(2, '0')}</span>
+                  <span className="text-sm font-black uppercase opacity-30 tracking-widest">ROUTINE {currentRotationId}</span>
+                </button>
               </div>
+
+              <div className="pt-2 mb-1 mt-1">
+                <h2 className="text-[10px] font-black uppercase opacity-60 mb-3 tracking-widest">View Routines</h2>
+                <div className="grid grid-cols-2 gap-2">
+                  {[1, 2, 3, 4].map(sessionId => (
+                    <button
+                      key={sessionId}
+                      onClick={() => setViewingSession(sessionId)}
+                      className="border-2 border-black font-black upperrcase py-3 text-2xl hover:bg-black hover:text-white transition-colors"
+                    >
+                      Routine {sessionId}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <WorkoutCalendar storage={storage} trigger={trigger} onDateClick={handleDateClick} onDeleteWorkout={handleDeleteWorkout} />
+              {viewingSession && (
+                <SessionViewer sessionId={viewingSession} onClose={() => setViewingSession(null)} progressionState={progressionState} storage={storage} progressionArrays={progressionArrays} />
+              )}
+
+              {retrospectiveDate && (
+                <SessionPicker
+                  date={retrospectiveDate}
+                  onClose={() => setRetrospectiveDate(null)}
+                  onSelectSession={(sessionId) => {
+                    setRetrospectiveRotationId(sessionId);
+                    setRetrospectiveDate(retrospectiveDate);
+                    setIsActive(true);
+                  }}
+                  storage={storage}
+                />
+              )}
             </div>
           ) : (
             <GuidedSession
-              rotationId={currentRotationId}
-              dayLabel={(totalSessions + 1).toString().padStart(2, '0')}
+              rotationId={retrospectiveRotationId || currentRotationId}
+              dayLabel={retrospectiveRotationId ? 'XX' : (historicSessions + totalSessions + 1).toString().padStart(2, '0')}
               lastPerf={lastPerf}
-              onBack={() => { setIsActive(false); localStorage.removeItem('cloudSessionDraft'); setTrigger(t => t + 1); }}
+              onBack={() => {
+                setIsActive(false);
+                setRetrospectiveRotationId(null);
+                setRetrospectiveDate(null);
+                localStorage.removeItem('localSessionDraft');
+                setTrigger(t => t + 1);
+              }}
               storage={storage}
-              onSync={syncToCloud}
+              onSync={syncToFile}
               draftSession={draftSession}
               setDraftSession={setDraftSession}
+              retrospectiveDate={retrospectiveDate}
+              progressionState={progressionState}
+              setProgressionState={setProgressionState}
+              progressionArrays={progressionArrays}
             />
           )}
         </div>
       );
     }
 
-    function GuidedSession({ rotationId, dayLabel, lastPerf, onBack, storage, onSync, draftSession, setDraftSession }) {
-      const config = workoutData[rotationId];
+    function SessionPicker({ date, onClose, onSelectSession, storage }) {
+      const dateStr = date.toDateString();
+      const existingWorkout = useMemo(() => {
+        const entry = Object.entries(storage.data).find(([key, val]) => {
+          const workout = typeof val === 'string' ? JSON.parse(val) : val;
+          return new Date(workout.date).toDateString() === dateStr;
+        });
+        return entry ? (typeof entry[1] === 'string' ? JSON.parse(entry[1]) : entry[1]) : null;
+      }, [storage.data, dateStr]);
+
+      return (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={onClose}>
+          <div className="bg-white border-4 border-black p-6 max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-start mb-4">
+              <div>
+                <h2 className="font-black text-xl uppercase">Log Workout</h2>
+                <p className="text-xs opacity-60">{date.toLocaleDateString()}</p>
+              </div>
+              <button onClick={onClose} className="text-2xl font-black opacity-60 hover:opacity-100">×</button>
+            </div>
+
+            {existingWorkout && (
+              <div className="mb-4 p-3 bg-gray-100 border-2 border-black">
+                <p className="text-xs font-black uppercase opacity-60 mb-1">Existing Workout</p>
+                <p className="text-sm font-bold">{existingWorkout.day}</p>
+              </div>
+            )}
+
+            <p className="text-sm font-bold mb-4">Select Session:</p>
+            <div className="grid grid-cols-2 gap-2">
+              {[1, 2, 3, 4].map(sessionId => (
+                <button
+                  key={sessionId}
+                  onClick={() => onSelectSession(sessionId)}
+                  className="border-2 border-black font-black uppercase py-4 text-sm hover:bg-black hover:text-white transition-colors"
+                >
+                  Session {sessionId}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function buildConfigFromProgressionState(rotationId, progressionState) {
+      if (!progressionState) return null;
+
+      const sessionKey = `routine${rotationId}`;
+      const sessionData = progressionState[sessionKey];
+
+      if (!sessionData) return null;
+
+      const config = {
+        type: sessionData.type,
+        warmUp: {
+          name: '1km Run',
+          targetDistance: '1',
+          targetSpeed: progressionState.warmupSpeed.toFixed(1)
+        }
+      };
+
+      // For round-based sessions (1 & 3)
+      if (sessionData.type === 'rounds') {
+        config.rounds = sessionData.rounds;
+        config.exercises = Object.entries(sessionData.exercises).map(([id, exData]) => ({
+          id: parseInt(id),
+          name: exData.name,
+          targetWeight: exData.targetWeight,
+          targetReps: exData.targetReps,
+          targetDistance: exData.targetDistance,
+          increment: exData.increment
+        }));
+      }
+
+      // For set-based sessions (2 & 4)
+      if (sessionData.type === 'sets') {
+        config.exercises = Object.entries(sessionData.exercises).map(([id, exData]) => {
+          const exercise = {
+            id: parseInt(id),
+            name: exData.name,
+            sets: 4,
+            increment: exData.increment,
+            progressionArray: exData.progressionArray,
+            // Include set data from progressionState for rendering and tracking
+            setData: exData.sets
+          };
+          return exercise;
+        });
+
+        // Add finisher for sessions 2 & 4
+        if (rotationId === 2 || rotationId === 4) {
+          config.finisher = {
+            name: '15 min',
+            segments: [
+              { duration: '5min', targetSpeed: progressionState.finisherSpeeds[0].toFixed(1) },
+              { duration: '5min', targetSpeed: progressionState.finisherSpeeds[1].toFixed(1) },
+              { duration: '5min', targetSpeed: progressionState.finisherSpeeds[2].toFixed(1) }
+            ]
+          };
+        }
+      }
+
+      return config;
+    }
+
+    function GuidedSession({ rotationId, dayLabel, lastPerf, onBack, storage, onSync, draftSession, setDraftSession, retrospectiveDate, progressionState, setProgressionState, progressionArrays }) {
+      // Build config directly from progressionState (single source of truth)
+      const config = useMemo(() => {
+        return buildConfigFromProgressionState(rotationId, progressionState);
+      }, [progressionState, rotationId]);
       const [step, setStep] = useState(draftSession?.step || 'warmup');
       const [activeExId, setActiveExId] = useState(draftSession?.activeExId || null);
       const [progress, setProgress] = useState(draftSession?.progress || config.exercises.reduce((acc, ex) => { acc[ex.id] = config.type === 'rounds' ? 0 : []; return acc; }, {}));
       const [warmUpData, setWarmUpData] = useState(draftSession?.warmUpData || lastPerf?.warmUp || {});
-      const [showWarmUpInput, setShowWarmUpInput] = useState(draftSession?.showWarmUpInput || false);
+      const [warmUpSpeed, setWarmUpSpeed] = useState(draftSession?.warmUpSpeed || '');
       const [warmUpTime, setWarmUpTime] = useState(draftSession?.warmUpTime || '');
-      const [finisherData, setRunData] = useState(draftSession?.finisherData || lastPerf?.finisher || {});
-      const [showRunInput, setShowRunInput] = useState(draftSession?.showRunInput || false);
-      const [finisherTime, setRunTime] = useState(draftSession?.finisherTime || '');
+      const [finisherStatus, setFinisherStatus] = useState(draftSession?.finisherStatus || null);
+      const [finisherDistance, setFinisherDistance] = useState(draftSession?.finisherDistance || '');
+      const [setInputs, setSetInputs] = useState({});
 
-      // Clear draft session flag after restoring
+      // Timer state
+      const [timerStartTime, setTimerStartTime] = useState(draftSession?.timerStartTime || null);
+      const [timerElapsed, setTimerElapsed] = useState(0);
+      const [finalTime, setFinalTime] = useState(draftSession?.finalTime || null);
+      const [timerPausedTime, setTimerPausedTime] = useState(0);
+      const [timeConfirmed, setTimeConfirmed] = useState(false);
+      const [intensityChange, setIntensityChange] = useState(null); // 'increase', 'decrease', or null
+      const [stampDayPressed, setStampDayPressed] = useState(false); // Track explicit "Stamp Day" button press
+      const longPressTimerRef = React.useRef({});
+
+      const isRetrospective = !!retrospectiveDate;
+      const isRoundBased = config.type === 'rounds';
+
+      // Helper function to get target weight (handles both regular and progression arrays)
+      const getTargetWeight = (exercise) => {
+        if (exercise.targetWeight) {
+          return exercise.targetWeight;
+        }
+        if (exercise.progression && exercise.progressionIndex !== undefined) {
+          const array = progressionArrays[exercise.progression];
+          return array ? array[exercise.progressionIndex] : null;
+        }
+        return null;
+      };
+
+      // Helper function to get warmup weight (50% of target, rounded up to nearest increment)
+      const getWarmupWeight = (exercise) => {
+        const targetWeight = getTargetWeight(exercise);
+        if (!targetWeight) return null;
+
+        const warmupWeight = targetWeight * 0.5;
+        const increment = exercise.increment || 2.5;
+
+        // Round up to nearest increment
+        return Math.ceil(warmupWeight / increment) * increment;
+      };
+
+      // Helper function to get consecutive successes for current set
+      const getConsecutiveSuccesses = () => {
+        if (!progressionState || !activeExId || currentSetIndex === null) return 0;
+        const sessionKey = `routine${rotationId}`;
+        const setNum = currentSetIndex + 1;
+        return progressionState[sessionKey]?.exercises[activeExId]?.sets[setNum]?.consecutiveSuccesses || 0;
+      };
+
+      // Timer effect - runs continuously
+      useEffect(() => {
+        if (timerStartTime && !finalTime) {
+          const interval = setInterval(() => {
+            const now = Date.now();
+            const elapsed = Math.floor((now - timerStartTime) / 1000);
+            setTimerElapsed(elapsed);
+          }, 100);
+          return () => clearInterval(interval);
+        }
+      }, [timerStartTime, finalTime, timerPausedTime]);
+
       useEffect(() => {
         if (draftSession) {
           setDraftSession(null);
         }
       }, []);
 
-      // Auto-save current session to localStorage every 5 seconds
       useEffect(() => {
-        const interval = setInterval(() => {
-          const sessionData = { rotationId, dayLabel, step, activeExId, progress, warmUpData, showWarmUpInput, warmUpTime, finisherData, showRunInput, finisherTime };
-          localStorage.setItem('cloudSessionDraft', JSON.stringify(sessionData));
-        }, 5000);
-        return () => clearInterval(interval);
-      }, [rotationId, dayLabel, step, activeExId, progress, warmUpData, showWarmUpInput, warmUpTime, finisherData, showRunInput, finisherTime]);
+        if (!retrospectiveDate) {
+          const interval = setInterval(() => {
+            const sessionData = {
+              rotationId, dayLabel, step, activeExId, progress, warmUpData, warmUpSpeed, warmUpTime,
+              finisherStatus, finisherDistance, timerStartTime, finalTime
+            };
+            localStorage.setItem('localSessionDraft', JSON.stringify(sessionData));
+          }, 5000);
+          return () => clearInterval(interval);
+        }
+      }, [rotationId, dayLabel, step, activeExId, progress, warmUpData, warmUpSpeed, warmUpTime, finisherStatus, finisherDistance, retrospectiveDate, timerStartTime, finalTime]);
 
       const activeEx = config.exercises.find(e => e.id === activeExId);
       const lastExData = useMemo(() => {
         if (!lastPerf || !activeExId) return null;
         const ex = lastPerf.exercises?.find(e => e.id === activeExId);
         if (!ex) return null;
-        // For sets-based: completedSets array, for rounds-based: weight property
         if (ex.completedSets && ex.completedSets.length > 0) {
           return { completedSets: ex.completedSets, isSetBased: true };
         } else if (ex.weight) {
@@ -315,27 +648,151 @@
         return null;
       }, [lastPerf, activeExId]);
 
-      const logAttempt = (status) => {
+      const formatTime = (seconds) => {
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+      };
+
+      const completeRound = () => {
         if (config.type === 'rounds') {
           const next = progress[activeExId] + 1;
           setProgress({ ...progress, [activeExId]: next });
-          if (next >= config.rounds) setActiveExId(null);
-        } else {
-          const updated = [...progress[activeExId], { status }];
-          setProgress({ ...progress, [activeExId]: updated });
-          if (updated.length >= activeEx.sets) setActiveExId(null);
+
+          // Stop timer if all exercises are complete
+          const allComplete = config.exercises.every(ex => {
+            if (ex.id === activeExId) return next >= config.rounds;
+            return progress[ex.id] >= config.rounds;
+          });
+
+          if (allComplete && timerStartTime && !finalTime) {
+            const elapsed = Math.floor((Date.now() - timerStartTime) / 1000);
+            setFinalTime(elapsed);
+          }
         }
       };
 
-      const currentSetIndex = config.type === 'sets' ? progress[activeExId]?.length || 0 : null;
+      const logAttempt = async (status) => {
+        if (config.type === 'sets') {
+          const setNumber = progress[activeExId].length + 1; // 1-4
+          const updated = [...progress[activeExId], { status, setNumber }];
+          setProgress({ ...progress, [activeExId]: updated });
+
+          // Close exercise immediately after last set is completed
+          if (updated.length >= activeEx.sets) {
+            setTimeout(() => setActiveExId(null), 100);
+          }
+        }
+      };
+
+      const saveSetData = () => {
+        if (!isRetrospective) return;
+
+        const currentSetIndex = progress[activeExId]?.length || 0;
+        const weight = setInputs[`${activeExId}-weight`] || '';
+        const reps = setInputs[`${activeExId}-reps`] || '';
+
+        const updated = [...progress[activeExId], { status: 'success', weight, reps }];
+        setProgress({ ...progress, [activeExId]: updated });
+
+        setSetInputs({});
+
+        if (updated.length >= activeEx.sets) {
+          setActiveExId(null);
+        }
+      };
+
+      let currentSetIndex = config.type === 'sets' ? progress[activeExId]?.length || 0 : null;
+      // Cap currentSetIndex to the last set when all sets are complete
+      if (currentSetIndex !== null && currentSetIndex >= activeEx?.sets) {
+        currentSetIndex = activeEx.sets - 1;
+      }
       const currentSetData = currentSetIndex !== null && lastExData?.completedSets?.[currentSetIndex] ? lastExData.completedSets[currentSetIndex] : null;
 
       const completeWorkout = async () => {
-        const exercisesWithData = config.exercises.map(ex => ({
-          ...ex,
-          completedSets: progress[ex.id]
-        }));
-        storage.data[`workout:${Date.now()}`] = JSON.stringify({ date: new Date().toISOString(), day: `Day ${rotationId}`, dayLabel: `Day ${dayLabel}`, exercises: exercisesWithData, warmUp: warmUpData, finisher: config.finisher });
+        const exercisesWithData = config.exercises.map(ex => ({ ...ex, completedSets: progress[ex.id] }));
+        const workoutDate = retrospectiveDate ? retrospectiveDate.toISOString() : new Date().toISOString();
+        const workoutEntry = {
+          date: workoutDate,
+          day: `Routine ${rotationId}`,
+          dayLabel: dayLabel,
+          exercises: exercisesWithData,
+          warmUp: warmUpData,
+          finisher: config.finisher
+        };
+
+        // Add timer data for round-based workouts
+        if (isRoundBased && finalTime !== null) {
+          workoutEntry.totalTime = finalTime;
+          workoutEntry.intensityChange = intensityChange; // Track what change was applied
+        }
+
+        storage.data[`workout:${Date.now()}`] = JSON.stringify(workoutEntry);
+
+        // Update progression only after workout is completed
+        if (!retrospectiveDate && progressionState) {
+          const newState = { ...progressionState };
+          const maxWarmupSpeed = 12;
+
+          // Update warmup consecutive successes if completed
+          if (warmUpData.status === 'success') {
+            newState.warmupConsecutiveSuccesses += 1;
+
+            if (newState.warmupConsecutiveSuccesses >= 3) {
+              newState.warmupSpeed = Math.min(maxWarmupSpeed, newState.warmupSpeed + 0.1);
+              newState.warmupConsecutiveSuccesses = 0;
+              console.log('Warmup progression: speed increased to', newState.warmupSpeed.toFixed(1));
+            }
+          } else {
+            newState.warmupConsecutiveSuccesses = 0;
+          }
+
+          // Apply intensity changes for round-based workouts
+          if (isRoundBased && intensityChange) {
+            // Apply exercise intensity changes for sessions 1 & 3
+            if (rotationId === 1 || rotationId === 3) {
+              const sessionKey = `routine${rotationId}`;
+              const updatedSession = { ...newState[sessionKey] };
+
+              // Iterate over exercises in the new structure
+              for (const exerciseId in updatedSession.exercises) {
+                const exData = updatedSession.exercises[exerciseId];
+                if (intensityChange === 'increase') {
+                  if (exData.targetWeight !== undefined) {
+                    exData.targetWeight = exData.targetWeight + (exData.increment || 1);
+                  }
+                  if (exData.targetReps !== undefined) {
+                    exData.targetReps = exData.targetReps + (exData.increment || 1);
+                  }
+                  if (exData.targetDistance !== undefined) {
+                    const distance = parseInt(exData.targetDistance);
+                    const increment = exData.increment || 50;
+                    exData.targetDistance = distance + increment;
+                  }
+                } else if (intensityChange === 'decrease') {
+                  if (exData.targetWeight !== undefined) {
+                    exData.targetWeight = Math.max(exData.targetWeight - (exData.increment || 1), 0);
+                  }
+                  if (exData.targetReps !== undefined) {
+                    exData.targetReps = Math.max(exData.targetReps - (exData.increment || 1), 0);
+                  }
+                  if (exData.targetDistance !== undefined) {
+                    const distance = parseInt(exData.targetDistance);
+                    const increment = exData.increment || 50;
+                    exData.targetDistance = Math.max(distance - increment, 0);
+                  }
+                }
+              }
+
+              newState[sessionKey] = updatedSession;
+            }
+          }
+
+          // Update state and persist
+          setProgressionState(newState);
+          storage.data['progression:state'] = JSON.stringify(newState);
+        }
+
         await onSync();
         onBack();
       };
@@ -343,57 +800,204 @@
       return (
         <div className="flex flex-col gap-6 flex-1">
           <div className="flex justify-between items-center text-[10px] font-bold border-b border-black pb-2 uppercase tracking-tighter">
-            <span>DAY {dayLabel} // SESS {rotationId}</span>
+            <span>{retrospectiveDate ? retrospectiveDate.toLocaleDateString() : `SESS ${dayLabel}`} // ROUT {rotationId} // {step === 'warmup' && (warmUpData.status === 'failed' ? 'WARMUP-FAIL' : 'WARMUP')}{step === 'hub' && activeExId && config.type === 'sets' && currentSetIndex < activeEx.sets && `${activeEx.name} // SET ${currentSetIndex + 1}`}{step === 'finisher' && 'FINISHER'}</span>
             <button onClick={onBack} className="underline opacity-40 hover:opacity-100">Abort</button>
           </div>
 
-          {step === 'warmup' && !showWarmUpInput && (
-            <div className="flex-1 flex flex-col gap-8 text-center pt-10">
-              <h2 className="text-5xl font-black uppercase italic tracking-tighter">Warm Up</h2>
+          {/* Timer Display for Round-Based Workouts */}
+          {isRoundBased && !isRetrospective && step === 'hub' && (
+            <div className="bg-black text-white p-4 text-center border-4 border-black">
+              <p className="text-xs font-black uppercase opacity-60 mb-1">Workout Time</p>
+              {finalTime !== null ? (
+                <>
+                  <p className="text-4xl font-black timer-display">
+                    {formatTime(finalTime)}
+                  </p>
+                  <p className="text-4xl font-black italic mt-2">COMPLETE</p>
+                </>
+              ) : (
+                <>
+                  <p className="text-4xl font-black timer-display">
+                    {timerStartTime || timerPausedTime > 0 ? formatTime(timerElapsed + timerPausedTime) : '--:--'}
+                  </p>
+                  {!timerStartTime && (
+                    <button
+                      onClick={() => setTimerStartTime(Date.now())}
+                      className="mt-3 bg-white text-black font-black uppercase py-2 px-6 text-sm hover:opacity-80 transition-opacity"
+                    >
+                      {timerPausedTime > 0 ? 'Resume' : 'Start Timer'}
+                    </button>
+                  )}
+                  {timerStartTime && (
+                    <button
+                      onClick={() => {
+                        setTimerPausedTime(timerPausedTime + timerElapsed);
+                        setTimerStartTime(null);
+                        setTimerElapsed(0);
+                      }}
+                      className="mt-3 bg-white text-black font-black uppercase py-2 px-6 text-sm hover:opacity-80 transition-opacity"
+                    >
+                      Pause
+                    </button>
+                  )}
+                </>
+              )}
+              {lastPerf?.totalTime && (
+                <p className="text-xs font-bold opacity-60 mt-2">
+                  Last: {formatTime(lastPerf.totalTime)}
+                </p>
+              )}
+            </div>
+          )}
 
-              <div className="flex-1 flex flex-col justify-center border-y-8 border-black bg-white py-12">
-                <p className="text-3xl font-black uppercase mb-4 tracking-tighter">{config.warmUp.name}</p>
-                {lastPerf?.warmUp && (
-                   <div className="flex flex-col gap-2 opacity-60">
-                      <p className="text-4xl font-black">Speed: {lastPerf.warmUp.speed} KM/H</p>
-                      <p className="text-4xl font-black">Time: {lastPerf.warmUp.time}</p>
-                   </div>
-                )}
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <button onClick={() => setShowWarmUpInput(true)} className="border-4 border-black font-black uppercase py-6 text-xs">Failed</button>
-                <button onClick={() => { setWarmUpData({ ...warmUpData, status: 'success' }); setStep('hub'); }} className="ereader-btn-deep py-6 text-xl">Success</button>
+          {/* Intensity Change Modal - appears after "Stamp Day" is pressed */}
+          {finalTime !== null && stampDayPressed && !timeConfirmed && (
+            <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
+              <div className="bg-white border-4 border-black p-8 max-w-sm w-full text-center">
+                {(() => {
+                  let changeType = null;
+                  if (finalTime < 25 * 60) {
+                    changeType = 'increase';
+                  } else if (finalTime > 35 * 60) {
+                    changeType = 'decrease';
+                  }
+                  return changeType ? (
+                    <>
+                      <p className="text-2xl font-black mb-3 uppercase">
+                        {changeType === 'increase' ? 'Increase intensity?' : 'Decrease intensity?'}
+                      </p>
+                      <p className="text-sm mb-6 font-bold uppercase">
+                        {changeType === 'increase' ? 'All exercises +1 increment' : 'All exercises -1 increment'}
+                      </p>
+                      <div className="flex gap-3">
+                        <button
+                          onClick={() => {
+                            setIntensityChange(changeType);
+                            setTimeConfirmed(true);
+                          }}
+                          className="flex-1 bg-black text-white font-black uppercase py-3 hover:opacity-80 transition-opacity"
+                        >
+                          Yes
+                        </button>
+                        <button
+                          onClick={() => {
+                            setTimeConfirmed(true);
+                          }}
+                          className="flex-1 border-2 border-black font-black uppercase py-3 hover:bg-black hover:text-white transition-colors"
+                        >
+                          No
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-lg font-black mb-6 uppercase">Good work!</p>
+                      <p className="text-sm mb-6 opacity-70">No intensity change</p>
+                      <button
+                        onClick={() => {
+                          setTimeConfirmed(true);
+                        }}
+                        className="w-full bg-black text-white font-black uppercase py-3 hover:opacity-80 transition-opacity"
+                      >
+                        Continue
+                      </button>
+                    </>
+                  );
+                })()}
               </div>
             </div>
           )}
 
-          {step === 'warmup' && showWarmUpInput && (
+          {/* Save Workout Modal - appears after intensity decision */}
+          {finalTime !== null && timeConfirmed && (
+            <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
+              <div className="bg-white border-4 border-black p-8 max-w-sm w-full text-center">
+                <p className="text-xl font-black mb-6 uppercase">Save workout?</p>
+                {intensityChange && (
+                  <p className="text-sm mb-6 font-bold">
+                    {intensityChange === 'increase' ? '↑ Intensity increased' : '↓ Intensity decreased'}
+                  </p>
+                )}
+                <button
+                  onClick={() => completeWorkout()}
+                  className="w-full bg-black text-white font-black uppercase py-3 hover:opacity-80 transition-opacity"
+                >
+                  Save Workout
+                </button>
+              </div>
+            </div>
+          )}
+
+          {step === 'warmup' && (
             <div className="flex-1 flex flex-col gap-8 text-center pt-10">
-              <h2 className="text-4xl font-black uppercase italic tracking-tighter">Warm Up</h2>
-              <p className="text-lg font-bold uppercase">Enter time</p>
-
-              <div className="flex-1 flex flex-col justify-center">
-                <input
-                  type="text"
-                  value={warmUpTime}
-                  onChange={(e) => {
-                    let val = e.target.value.replace(/\D/g, '');
-                    if (val.length > 4) val = val.slice(0, 4);
-                    if (val.length >= 3) {
-                      val = val.slice(0, -2) + ':' + val.slice(-2);
-                    }
-                    setWarmUpTime(val);
-                  }}
-                  placeholder="MM:SS"
-                  className="text-5xl font-black text-center border-2 border-black p-4 placeholder-gray-400"
-                />
+              <h2 className="text-4xl font-black uppercase italic tracking-tighter">RUN</h2>
+              <div className="flex flex-col gap-2 items-center justify-center">
+                <p className="text-6xl font-black">1KM</p>
+                <span className="text-3xl font-black leading-none">{config.warmUp.targetSpeed}KM/H</span>
+                <div className="flex gap-2 mt-2">
+                  {[0, 1, 2].map(i => (
+                    <div
+                      key={i}
+                      className={`w-3 h-3 rounded-full border-2 border-black ${
+                        progressionState?.warmupConsecutiveSuccesses > i ? 'bg-black' : 'bg-white'
+                      }`}
+                    />
+                  ))}
+                </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <button onClick={() => setShowWarmUpInput(false)} className="border-4 border-black font-black uppercase py-6 text-xs">Back</button>
-                <button onClick={() => { setWarmUpData({ time: warmUpTime, status: 'failed' }); setStep('hub'); }} className="ereader-btn-deep py-6 text-xl">Done</button>
-              </div>
+              {warmUpData.status === 'failed' ? (
+                <div className="flex-1 flex flex-col justify-center gap-4">
+                  <div>
+                    <label className="text-[10px] font-black uppercase opacity-60 mb-2 block">Time</label>
+                    <input
+                      type="text"
+                      value={warmUpTime}
+                      onChange={(e) => {
+                        let val = e.target.value.replace(/\D/g, '');
+                        if (val.length > 4) val = val.slice(0, 4);
+                        if (val.length >= 3) {
+                          val = val.slice(0, -2) + ':' + val.slice(-2);
+                        }
+                        setWarmUpTime(val);
+                      }}
+                      placeholder="MM:SS"
+                      className="text-3xl font-black text-center border-2 border-black p-3 w-full"
+                    />
+                  </div>
+                  <button
+                    onClick={() => {
+                      setWarmUpData({ status: 'failed', speed: config.warmUp.targetSpeed, time: warmUpTime, distance: config.warmUp.targetDistance });
+                      setStep('hub');
+                    }}
+                    className="ereader-btn-deep py-6 text-xl mt-4"
+                  >
+                    Continue
+                  </button>
+                  <button onClick={() => { setWarmUpTime(''); setWarmUpData({ status: undefined }); }} className="text-[10px] font-black uppercase underline opacity-40">Back</button>
+                </div>
+              ) : (
+                <div className="flex-1 flex flex-col justify-center gap-4">
+                  <button
+                    onClick={async () => {
+                      setWarmUpData({ status: 'success', speed: config.warmUp.targetSpeed, time: '', distance: config.warmUp.targetDistance });
+
+                      setStep('hub');
+                    }}
+                    className="ereader-btn-deep py-8 text-2xl"
+                  >
+                    Completed
+                  </button>
+                  <button
+                    onClick={() => {
+                      setWarmUpData({ ...warmUpData, status: 'failed' });
+                    }}
+                    className="border-4 border-black font-black uppercase py-4 text-sm"
+                  >
+                    Failed
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
@@ -401,186 +1005,680 @@
             <div className="flex-1 flex flex-col gap-4">
               <div className="space-y-3">
                 {config.exercises.map(ex => (
-                  <button key={ex.id} onClick={() => {
-                    if (config.type === 'rounds') {
-                      if (progress[ex.id] < config.rounds) {
-                        setProgress({ ...progress, [ex.id]: progress[ex.id] + 1 });
+                  <button
+                    key={ex.id}
+                    onTouchStart={() => {
+                      // Start a timer for long press (500ms)
+                      const timer = setTimeout(() => {
+                        // Long press detected (500ms hold) - undo last round for rounds only
+                        if (config.type === 'rounds' && progress[ex.id] > 0) {
+                          const newProgress = progress[ex.id] - 1;
+                          setProgress({ ...progress, [ex.id]: newProgress });
+                        }
+                        // Mark as long press triggered
+                        longPressTimerRef.current[`${ex.id}-triggered`] = true;
+                      }, 500);
+
+                      longPressTimerRef.current[ex.id] = timer;
+                      longPressTimerRef.current[`${ex.id}-triggered`] = false;
+                    }}
+                    onTouchEnd={() => {
+                      const timer = longPressTimerRef.current[ex.id];
+                      const wasLongPressed = longPressTimerRef.current[`${ex.id}-triggered`];
+
+                      if (timer) {
+                        // Clear the timeout
+                        clearTimeout(timer);
+                        longPressTimerRef.current[ex.id] = null;
+                        longPressTimerRef.current[`${ex.id}-triggered`] = false;
+
+                        // Only execute short tap action if long press was NOT triggered
+                        if (!wasLongPressed) {
+                          if (config.type === 'rounds') {
+                            if (progress[ex.id] < config.rounds) {
+                              const next = progress[ex.id] + 1;
+                              setProgress({ ...progress, [ex.id]: next });
+
+                              // Stop timer if all exercises are complete
+                              const allComplete = config.exercises.every(exercise => {
+                                if (exercise.id === ex.id) return next >= config.rounds;
+                                return progress[exercise.id] >= config.rounds;
+                              });
+
+                              if (allComplete && timerStartTime && !finalTime) {
+                                const elapsed = Math.floor((Date.now() - timerStartTime) / 1000);
+                                setFinalTime(elapsed);
+                              }
+                            }
+                          } else if (config.type === 'sets') {
+                            setActiveExId(ex.id);
+                          }
+                        }
                       }
-                    } else {
-                      setActiveExId(ex.id);
-                    }
-                  }} className="w-full text-left bg-white p-3 border-2 border-black">
-                    <div className="font-black uppercase text-2xl mb-2 tracking-tighter">{ex.name}</div>
+                    }}
+                    className="w-full text-left bg-white p-3 border-2 border-black"
+                  >
+                    <div className="flex justify-between items-center font-black uppercase text-lg mb-2 tracking-tighter leading-tight">
+                      <span>{ex.name}</span>
+                      <span className="opacity-60 text-sm">
+                        {ex.targetWeight && `${ex.targetWeight}KG`}
+                        {ex.targetReps && `${ex.targetReps}`}
+                        {ex.targetDistance && `${ex.targetDistance}`}
+                        {ex.progression && ex.progressionIndex !== undefined && `${getTargetWeight(ex)}KG`}
+                      </span>
+                    </div>
                     <div className="flex gap-1">
                       {Array.from({ length: config.type === 'rounds' ? config.rounds : ex.sets }).map((_, i) => {
                         const s = config.type === 'rounds' ? (i < progress[ex.id]) : progress[ex.id][i];
-                        return <div key={i} className={`h-2 flex-1 border border-black ${s ? 'bg-black' : ''}`} />;
+                        const isFailed = s?.status === 'failed';
+                        return <div key={i} className={`h-2 flex-1 border border-black ${s ? (isFailed ? 'bg-gray-400' : 'bg-black') : ''}`} />;
                       })}
                     </div>
                   </button>
                 ))}
               </div>
-              <div className="flex flex-col gap-3 mt-auto">
+              <div className="flex flex-col gap-3 mt-12">
                 <button onClick={() => setStep('warmup')} className="border-4 border-black font-black uppercase py-4 text-xs">Back</button>
-                <button onClick={() => {
-                  const isComplete = config.exercises.every(ex => {
-                    if (config.type === 'rounds') return progress[ex.id] >= config.rounds;
-                    return progress[ex.id].length >= ex.sets;
-                  });
-                  if (isComplete) {
-                    if (config.finisher) {
-                      setStep('finisher');
-                    } else {
-                      completeWorkout();
+                <button
+                  onClick={() => {
+                    const isComplete = config.exercises.every(ex => {
+                      if (config.type === 'rounds') return progress[ex.id] >= config.rounds;
+                      return progress[ex.id].length >= ex.sets;
+                    });
+                    if (isComplete) {
+                      // For round-based workouts with finisher, go to finisher step
+                      if (config.finisher) {
+                        setStep('finisher');
+                      } else if (isRoundBased && finalTime !== null && !retrospectiveDate) {
+                        // For circuits with timer: trigger intensity change flow
+                        setStampDayPressed(true);
+                      } else {
+                        // For everything else: complete workout directly
+                        completeWorkout();
+                      }
                     }
-                  }
-                }} className={`py-6 text-xl ${config.exercises.every(ex => config.type === 'rounds' ? progress[ex.id] >= config.rounds : progress[ex.id].length >= ex.sets) ? 'ereader-btn-deep' : 'border-4 border-black font-black uppercase opacity-30 cursor-not-allowed'}`}>Stamp Day {dayLabel}</button>
+                  }}
+                  className={`py-6 text-xl ${config.exercises.every(ex => config.type === 'rounds' ? progress[ex.id] >= config.rounds : progress[ex.id].length >= ex.sets) ? 'ereader-btn-deep' : 'border-4 border-black font-black uppercase opacity-30 cursor-not-allowed'}`}
+                >
+                  {retrospectiveDate ? 'Save Workout' : `Stamp Session ${dayLabel}`}
+                </button>
               </div>
             </div>
           )}
 
-          {step === 'finisher' && !showRunInput && (
+          {step === 'finisher' && (
             <div className="flex-1 flex flex-col gap-8 text-center pt-10">
-              <h2 className="text-5xl font-black uppercase italic tracking-tighter">Run</h2>
+              <h2 className="text-4xl font-black uppercase italic tracking-tighter">Finisher</h2>
+              <p className="text-lg font-bold uppercase">15 MIN TOTAL</p>
 
-              <div className="flex-1 flex flex-col justify-center border-y-8 border-black bg-white py-12">
-                <p className="text-3xl font-black uppercase mb-4 tracking-tighter">{config.finisher.name}</p>
-                {lastPerf?.finisher && (
-                   <div className="flex flex-col gap-2 opacity-60">
-                      {lastPerf.finisher.speed && <p className="text-4xl font-black">Speed: {lastPerf.finisher.speed} KM/H</p>}
-                      {lastPerf.finisher.distance && <p className="text-4xl font-black">Distance: {lastPerf.finisher.distance} KM</p>}
-                      {lastPerf.finisher.time && <p className="text-4xl font-black">Time: {lastPerf.finisher.time}</p>}
-                   </div>
-                )}
-              </div>
-
-              <div className="flex flex-col gap-3">
-                <button onClick={() => { const exercisesWithData = config.exercises.map(ex => ({ ...ex, completedSets: progress[ex.id] })); storage.data[`workout:${Date.now()}`] = JSON.stringify({ date: new Date().toISOString(), day: `Day ${rotationId}`, dayLabel: `Day ${dayLabel}`, exercises: exercisesWithData, warmUp: warmUpData, finisher: { ...config.finisher, status: 'success' } }); onSync().then(onBack); }} className="ereader-btn-deep py-8 text-2xl font-black">Success</button>
-                <button onClick={() => setShowRunInput(true)} className="border-4 border-black font-black uppercase py-3 text-xs">Failed</button>
-              </div>
-            </div>
-          )}
-
-          {step === 'finisher' && showRunInput && (
-            <div className="flex-1 flex flex-col gap-8 text-center pt-10">
-              <h2 className="text-4xl font-black uppercase italic tracking-tighter">Run</h2>
-              <p className="text-lg font-bold uppercase">Enter distance</p>
-
-              <div className="flex-1 flex flex-col justify-center border-y-8 border-black bg-white py-12">
-                <label className="text-[10px] font-black uppercase opacity-60 mb-4">Distance (KM)</label>
-                <input
-                  type="text"
-                  value={finisherData.distance || ''}
-                  onChange={(e) => setRunData({ ...finisherData, distance: e.target.value })}
-                  placeholder="e.g., 3"
-                  className="text-5xl font-black text-center border-2 border-black p-4"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <button onClick={() => setShowRunInput(false)} className="border-4 border-black font-black uppercase py-6 text-xs">Back</button>
-                <button onClick={() => { const exercisesWithData = config.exercises.map(ex => ({ ...ex, completedSets: progress[ex.id] })); storage.data[`workout:${Date.now()}`] = JSON.stringify({ date: new Date().toISOString(), day: `Day ${rotationId}`, dayLabel: `Day ${dayLabel}`, exercises: exercisesWithData, warmUp: warmUpData, finisher: { ...config.finisher, distance: finisherData.distance, status: 'failed' } }); onSync().then(onBack); }} className="ereader-btn-deep py-6 text-xl">Done</button>
-              </div>
-            </div>
-          )}
-
-          {step === 'hub' && activeExId && (
-            <div className="flex-1 flex flex-col gap-8 text-center pt-10">
-              <h2 className="text-3xl font-black uppercase italic tracking-tighter leading-none">{activeEx.name}</h2>
-              <div className="flex gap-2 px-8">
-                  {Array.from({ length: config.type === 'rounds' ? config.rounds : activeEx.sets }).map((_, i) => {
-                    const s = config.type === 'rounds' ? (i < progress[activeExId]) : progress[activeExId][i];
-                    return <div key={i} className={`h-3 flex-1 border-2 border-black ${s ? 'bg-black' : ''}`} />;
-                  })}
-              </div>
-              <div className="flex-1 flex flex-col justify-center border-y-8 border-black bg-white py-12">
-                {currentSetData ? (
-                  <div className="flex flex-col gap-3">
-                    <p className="text-8xl font-black">{currentSetData.weight}kg</p>
-                    <p className="text-5xl font-black opacity-60 uppercase">{currentSetData.reps} reps</p>
+              <div className="flex gap-3 justify-center">
+                {config.finisher?.segments?.map((seg, i) => (
+                  <div key={i} className="flex-1 flex flex-col items-center gap-1">
+                    <p className="text-xs font-black uppercase opacity-60">5 MIN</p>
+                    <p className="text-2xl font-black">{seg.targetSpeed}KM/H</p>
                   </div>
-                ) : (
-                  <p className="text-4xl font-black uppercase">Initial Base</p>
-                )}
+                ))}
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <button onClick={() => logAttempt('failed')} className="border-4 border-black font-black uppercase py-4 text-xs">Failed</button>
-                <button onClick={() => logAttempt('success')} className="ereader-btn-deep py-4 text-xl">Success</button>
+
+              {!finisherStatus && (
+                <div className="flex-1 flex flex-col justify-center gap-4">
+                  <div className="flex flex-col gap-3">
+                    <button
+                      onClick={() => setFinisherStatus('failed')}
+                      className="border-4 border-black font-black uppercase py-4 text-xs"
+                    >
+                      Failed
+                    </button>
+                    <button
+                      onClick={() => setFinisherStatus('success')}
+                      className="ereader-btn-deep py-4 text-xl"
+                    >
+                      Success
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {finisherStatus === 'failed' && (
+                <div className="flex-1 flex flex-col justify-center gap-4">
+                  <div>
+                    <label className="text-[10px] font-black uppercase opacity-60 mb-2 block">Total Distance (KM)</label>
+                    <input
+                      type="text"
+                      value={finisherDistance}
+                      onChange={(e) => setFinisherDistance(e.target.value)}
+                      placeholder="e.g., 3.2"
+                      className="text-3xl font-black text-center border-2 border-black p-3 w-full"
+                    />
+                  </div>
+                  <button
+                    onClick={async () => {
+                      const exercisesWithData = config.exercises.map(ex => ({ ...ex, completedSets: progress[ex.id] }));
+                      const workoutDate = retrospectiveDate ? retrospectiveDate.toISOString() : new Date().toISOString();
+                      storage.data[`workout:${Date.now()}`] = JSON.stringify({
+                        date: workoutDate,
+                        day: `Routine ${rotationId}`,
+                        dayLabel: dayLabel,
+                        exercises: exercisesWithData,
+                        warmUp: warmUpData,
+                        finisher: { status: 'failed', distance: finisherDistance }
+                      });
+
+                      // Update progression when workout is saved (even with failed finisher)
+                      if (!retrospectiveDate && progressionState) {
+                        const newState = JSON.parse(JSON.stringify(progressionState)); // deep copy
+                        const sessionKey = `routine${rotationId}`;
+                        const maxWarmupSpeed = 12;
+
+                        // Update warmup consecutive successes if completed
+                        if (warmUpData.status === 'success') {
+                          newState.warmupConsecutiveSuccesses += 1;
+
+                          if (newState.warmupConsecutiveSuccesses >= 3) {
+                            newState.warmupSpeed = Math.min(maxWarmupSpeed, newState.warmupSpeed + 0.1);
+                            newState.warmupConsecutiveSuccesses = 0;
+                            console.log('Warmup progression: speed increased to', newState.warmupSpeed.toFixed(1));
+                          }
+                        } else {
+                          newState.warmupConsecutiveSuccesses = 0;
+                        }
+
+                        // For set-based routines, update set consecutive successes
+                        if (config.type === 'sets' && newState[sessionKey]) {
+                          config.exercises.forEach(ex => {
+                            const exData = newState[sessionKey].exercises[ex.id];
+                            if (exData && exData.sets && progress[ex.id]) {
+                              progress[ex.id].forEach((setResult, setIndex) => {
+                                const setNumber = setIndex + 1;
+                                if (setResult.status === 'success') {
+                                  exData.sets[setNumber].consecutiveSuccesses += 1;
+
+                                  if (setNumber > 1 && exData.sets[setNumber].consecutiveSuccesses >= 2) {
+                                    const setData = exData.sets[setNumber];
+                                    if (exData.increment) {
+                                      setData.targetWeight += exData.increment;
+                                    } else if (exData.progressionArray) {
+                                      const array = progressionArrays[exData.progressionArray];
+                                      const currentIndex = array.indexOf(setData.targetWeight);
+                                      if (currentIndex < array.length - 1) {
+                                        setData.targetWeight = array[currentIndex + 1];
+                                      }
+                                    }
+                                    setData.consecutiveSuccesses = 0;
+                                    console.log(`Set ${setNumber} of ${ex.name} progressed to ${setData.targetWeight}kg`);
+                                  }
+                                } else {
+                                  exData.sets[setNumber].consecutiveSuccesses = 0;
+                                }
+                              });
+
+                              if (exData.sets[2]) {
+                                const set2Weight = exData.sets[2].targetWeight;
+                                const increment = exData.increment || 2.5;
+                                exData.sets[1].targetWeight =
+                                  Math.ceil((set2Weight * 0.5) / increment) * increment;
+                              }
+                            }
+                          });
+                        }
+
+                        // Finisher failed - reset consecutive counter
+                        newState.finisherConsecutiveSuccesses = 0;
+
+                        setProgressionState(newState);
+                        storage.data['progression:state'] = JSON.stringify(newState);
+                        await storage.saveToFile();
+                      }
+
+                      await onSync();
+                      onBack();
+                    }}
+                    className="ereader-btn-deep py-6 text-xl"
+                  >
+                    Save Workout
+                  </button>
+                </div>
+              )}
+
+              {finisherStatus === 'success' && (
+                <button
+                  onClick={async () => {
+                    const exercisesWithData = config.exercises.map(ex => ({ ...ex, completedSets: progress[ex.id] }));
+                    const workoutDate = retrospectiveDate ? retrospectiveDate.toISOString() : new Date().toISOString();
+                    storage.data[`workout:${Date.now()}`] = JSON.stringify({
+                      date: workoutDate,
+                      day: `Routine ${rotationId}`,
+                      dayLabel: dayLabel,
+                      exercises: exercisesWithData,
+                      warmUp: warmUpData,
+                      finisher: { status: 'success' }
+                    });
+
+                    // Update progression only after workout is stamped
+                    if (!retrospectiveDate && progressionState) {
+                      const newState = JSON.parse(JSON.stringify(progressionState)); // deep copy
+                      const sessionKey = `routine${rotationId}`;
+                      const maxWarmupSpeed = 12;
+
+                      // Update warmup consecutive successes if completed
+                      if (warmUpData.status === 'success') {
+                        newState.warmupConsecutiveSuccesses += 1;
+
+                        if (newState.warmupConsecutiveSuccesses >= 3) {
+                          newState.warmupSpeed = Math.min(maxWarmupSpeed, newState.warmupSpeed + 0.1);
+                          newState.warmupConsecutiveSuccesses = 0;
+                          console.log('Warmup progression: speed increased to', newState.warmupSpeed.toFixed(1));
+                        }
+                      } else {
+                        newState.warmupConsecutiveSuccesses = 0;
+                      }
+
+                      // For set-based routines, update set consecutive successes
+                      if (config.type === 'sets' && newState[sessionKey]) {
+                        config.exercises.forEach(ex => {
+                          const exData = newState[sessionKey].exercises[ex.id];
+                          if (exData && exData.sets && progress[ex.id]) {
+                            progress[ex.id].forEach((setResult, setIndex) => {
+                              const setNumber = setIndex + 1;
+                              if (setResult.status === 'success') {
+                                // Increment consecutive successes
+                                exData.sets[setNumber].consecutiveSuccesses += 1;
+
+                                // Check if needs progression (2 consecutive for working sets, ignore set 1)
+                                if (setNumber > 1 && exData.sets[setNumber].consecutiveSuccesses >= 2) {
+                                  const setData = exData.sets[setNumber];
+
+                                  if (exData.increment) {
+                                    setData.targetWeight += exData.increment;
+                                  } else if (exData.progressionArray) {
+                                    const array = progressionArrays[exData.progressionArray];
+                                    const currentIndex = array.indexOf(setData.targetWeight);
+                                    if (currentIndex < array.length - 1) {
+                                      setData.targetWeight = array[currentIndex + 1];
+                                    }
+                                  }
+
+                                  setData.consecutiveSuccesses = 0;
+                                  console.log(`Set ${setNumber} of ${ex.name} progressed to ${setData.targetWeight}kg`);
+                                }
+                              } else {
+                                // Reset on failure
+                                exData.sets[setNumber].consecutiveSuccesses = 0;
+                              }
+                            });
+
+                            // Update warmup set to 50% of set 2
+                            if (exData.sets[2]) {
+                              const set2Weight = exData.sets[2].targetWeight;
+                              const increment = exData.increment || 2.5;
+                              exData.sets[1].targetWeight =
+                                Math.ceil((set2Weight * 0.5) / increment) * increment;
+                            }
+                          }
+                        });
+                      }
+
+                      // Update finisher consecutive successes
+                      newState.finisherConsecutiveSuccesses += 1;
+
+                      if (newState.finisherConsecutiveSuccesses >= 2) {
+                        const segmentIndex = newState.finisherNextSegmentIndex;
+                        newState.finisherSpeeds[segmentIndex] += 0.1;
+                        newState.finisherNextSegmentIndex = (segmentIndex - 1 + 3) % 3;
+                        newState.finisherConsecutiveSuccesses = 0;
+                        console.log(`Finisher progression: segment ${segmentIndex} speed increased to ${newState.finisherSpeeds[segmentIndex].toFixed(1)}, next segment is ${newState.finisherNextSegmentIndex}`);
+                      }
+
+                      setProgressionState(newState);
+                      storage.data['progression:state'] = JSON.stringify(newState);
+                      await storage.saveToFile();
+                    }
+
+                    await onSync();
+                    onBack();
+                  }}
+                  className="ereader-btn-deep py-6 text-xl"
+                >
+                  Save Workout
+                </button>
+              )}
+            </div>
+          )}
+
+          {step === 'hub' && activeExId && config.type === 'sets' && (
+            <div className="flex-1 flex flex-col gap-4 text-center pt-10">
+              <h2
+                className="text-3xl font-black uppercase italic tracking-tighter leading-none cursor-pointer select-none"
+                onTouchStart={() => {
+                  const timer = setTimeout(() => {
+                    // Long press detected - undo last set
+                    if (progress[activeExId] && progress[activeExId].length > 0) {
+                      const updated = [...progress[activeExId]].slice(0, -1);
+                      setProgress({ ...progress, [activeExId]: updated });
+                    }
+                    longPressTimerRef.current[`${activeExId}-heading-triggered`] = true;
+                  }, 500);
+                  longPressTimerRef.current[`${activeExId}-heading`] = timer;
+                  longPressTimerRef.current[`${activeExId}-heading-triggered`] = false;
+                }}
+                onTouchEnd={() => {
+                  const timer = longPressTimerRef.current[`${activeExId}-heading`];
+                  if (timer) {
+                    clearTimeout(timer);
+                    longPressTimerRef.current[`${activeExId}-heading`] = null;
+                    longPressTimerRef.current[`${activeExId}-heading-triggered`] = false;
+                  }
+                }}
+              >
+                {activeEx.name}
+              </h2>
+              <div className="h-12 flex gap-2 px-8">
+                {Array.from({ length: config.type === 'rounds' ? config.rounds : activeEx.sets }).map((_, i) => {
+                  const s = config.type === 'rounds' ? (i < progress[activeExId]) : progress[activeExId][i];
+                  const isFailed = s?.status === 'failed';
+                  return <div key={i} className={`h-3 flex-1 border-2 border-black ${s ? (isFailed ? 'bg-gray-400' : 'bg-black') : ''}`} />;
+                })}
               </div>
+
+              {isRetrospective && config.type === 'sets' ? (
+                <div className="flex-1 flex flex-col justify-center gap-4">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-black uppercase opacity-60">Set {currentSetIndex + 1} of {activeEx.sets}</p>
+                    {currentSetIndex > 0 && (
+                      <div className="flex gap-2">
+                        {[0, 1].map(i => (
+                          <div
+                            key={i}
+                            className={`w-4 h-4 rounded-full border-2 border-black ${
+                              getConsecutiveSuccesses() > i ? 'bg-black' : 'bg-white'
+                            }`}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {currentSetIndex === 0 && (
+                    <div className="bg-gray-100 border-2 border-black p-3">
+                      <p className="text-sm font-black">{activeEx.setData?.[1]?.targetWeight || getWarmupWeight(activeEx)}KG × {activeEx.setData?.[1]?.targetReps || 12} REPS</p>
+                    </div>
+                  )}
+
+                  {progress[activeExId]?.[currentSetIndex]?.weight && (
+                    <div className="mb-2 opacity-60">
+                      <p className="text-lg font-black">This session: {progress[activeExId][currentSetIndex].weight}KG × {progress[activeExId][currentSetIndex].reps}</p>
+                    </div>
+                  )}
+                  {!progress[activeExId]?.[currentSetIndex]?.weight && lastExData?.completedSets?.[currentSetIndex] && (
+                    <div className="mb-2 opacity-60">
+                      <p className="text-lg font-black">Last: {lastExData.completedSets[currentSetIndex].weight}KG × {lastExData.completedSets[currentSetIndex].reps}</p>
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="text-[10px] font-black uppercase opacity-60 mb-2 block">Weight (KG)</label>
+                    <input
+                      type="text"
+                      value={setInputs[`${activeExId}-weight`] || ''}
+                      onChange={(e) => setSetInputs({...setInputs, [`${activeExId}-weight`]: e.target.value})}
+                      placeholder="e.g., 50"
+                      className="text-3xl font-black text-center border-2 border-black p-3 w-full"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-black uppercase opacity-60 mb-2 block">Reps</label>
+                    <input
+                      type="text"
+                      value={setInputs[`${activeExId}-reps`] || ''}
+                      onChange={(e) => setSetInputs({...setInputs, [`${activeExId}-reps`]: e.target.value})}
+                      placeholder="e.g., 10"
+                      className="text-3xl font-black text-center border-2 border-black p-3 w-full"
+                    />
+                  </div>
+
+                  <button
+                    onClick={saveSetData}
+                    className="ereader-btn-deep py-6 text-xl mt-4"
+                  >
+                    Save Set
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div className="flex flex-col justify-center border-y-8 border-black bg-white py-6 h-48">
+                    {currentSetIndex === 0 ? (
+                      <div className="flex flex-col gap-4 items-center">
+                        <p className="text-6xl font-black">{activeEx.setData?.[1]?.targetWeight || getWarmupWeight(activeEx)}KG</p>
+                        <p className="text-3xl font-black opacity-60 uppercase">{activeEx.setData?.[1]?.targetReps || 12} REPS</p>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col gap-4 items-center">
+                        <p className="text-6xl font-black">{currentSetIndex < activeEx.sets ? (activeEx.setData?.[currentSetIndex + 1]?.targetWeight || getTargetWeight(activeEx)) : '—'}KG</p>
+                        <p className="text-3xl font-black opacity-60 uppercase">{currentSetIndex < activeEx.sets ? (activeEx.setData?.[currentSetIndex + 1]?.targetReps || 8) : '—'} REPS</p>
+                      </div>
+                    )}
+                  </div>
+                  {currentSetIndex > 0 && (
+                    <div className="flex gap-2 justify-center">
+                      {[0, 1].map(i => (
+                        <div
+                          key={i}
+                          className={`w-4 h-4 rounded-full border-2 border-black ${
+                            getConsecutiveSuccesses() > i ? 'bg-black' : 'bg-white'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex flex-col gap-3">
+                    <div className="grid grid-cols-2 gap-4">
+                      <button onClick={() => logAttempt('failed')} className="border-4 border-black font-black uppercase py-4 text-xs">Failed</button>
+                      <button onClick={() => logAttempt('success')} className="ereader-btn-deep py-4 text-xl">Success</button>
+                    </div>
+                    <button onClick={() => setActiveExId(null)} className="border-4 border-black font-black uppercase py-3 text-xs">Back</button>
+                  </div>
+                </>
+              )}
             </div>
           )}
         </div>
       );
     }
 
-    function WorkoutCalendar({ storage, trigger }) {
+    function SessionViewer({ sessionId, onClose, progressionState, storage, progressionArrays }) {
+      // Build config directly from progressionState (single source of truth)
+      const config = useMemo(() => {
+        return buildConfigFromProgressionState(sessionId, progressionState);
+      }, [sessionId, progressionState]);
+
+      const getTargetWeight = (exercise) => {
+        if (exercise.targetWeight) {
+          return exercise.targetWeight;
+        }
+        if (exercise.progression && exercise.progressionIndex !== undefined) {
+          const array = progressionArrays[exercise.progression];
+          return array ? array[exercise.progressionIndex] : null;
+        }
+        return null;
+      };
+
+      return (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={onClose}>
+          <div className="bg-white border-4 border-black p-6 max-h-[80vh] overflow-y-auto max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-start mb-4">
+              <h2 className="font-black text-2xl uppercase">Session {sessionId}</h2>
+              <button onClick={onClose} className="text-2xl font-black opacity-60 hover:opacity-100">×</button>
+            </div>
+
+            <div className="space-y-4">
+              {config.warmUp && (
+                <div className="border-b-2 border-black pb-3">
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="text-xs font-black uppercase opacity-60">Warm Up</p>
+                    <div className="flex gap-1">
+                      {[0, 1, 2].map(i => (
+                        <div
+                          key={i}
+                          className={`w-2 h-2 rounded-full border border-black ${
+                            progressionState?.warmupConsecutiveSuccesses > i ? 'bg-black' : 'bg-white'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                  <p className="font-bold">{config.warmUp.name}</p>
+                  <p className="text-xs opacity-60 mt-1">
+                    {config.warmUp.targetDistance && `${config.warmUp.targetDistance} • `}
+                    {config.warmUp.targetTime && `${config.warmUp.targetTime} • `}
+                    {config.warmUp.targetSpeed && `${progressionState?.warmupSpeed?.toFixed(1) || config.warmUp.targetSpeed} km/h`}
+                  </p>
+                </div>
+              )}
+
+              <div>
+                <p className="text-xs font-black uppercase opacity-60 mb-2">
+                  {config.type === 'rounds' ? `${config.rounds} Rounds` : 'Sets'}
+                </p>
+                <div className="space-y-2">
+                  {config.exercises.map(ex => (
+                    <div key={ex.id} className="border-l-4 border-black pl-3 py-1">
+                      <p className="text-sm font-black">{ex.name}</p>
+                      {config.type === 'rounds' ? (
+                        <p className="text-xs opacity-60">
+                          {ex.targetWeight && `Target: ${ex.targetWeight}`}
+                          {ex.targetReps && `Target: ${ex.targetReps} reps`}
+                          {ex.targetDistance && `${ex.targetDistance}`}
+                          {ex.targetTime && `${ex.targetTime}`}
+                          {ex.targetSpeed && `${ex.targetSpeed}`}
+                        </p>
+                      ) : (
+                        <div className="text-xs opacity-60 mt-1 space-y-1">
+                          <p>Set 1: {ex.setData?.[1]?.targetWeight}kg × 12 reps</p>
+                          <div className="flex items-center justify-between">
+                            <p>Sets 2-4: {ex.setData?.[2]?.targetWeight}kg × 8 reps</p>
+                            <div className="flex gap-1">
+                              {[0, 1].map(i => (
+                                <div
+                                  key={i}
+                                  className={`w-2 h-2 rounded-full border border-black ${
+                                    ex.setData?.[2]?.consecutiveSuccesses > i ? 'bg-black' : 'bg-white'
+                                  }`}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {config.finisher && (
+                <div className="border-t-2 border-black pt-3">
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="text-xs font-black uppercase opacity-60">Finisher</p>
+                    <div className="flex gap-1">
+                      {[0, 1].map(i => (
+                        <div
+                          key={i}
+                          className={`w-2 h-2 rounded-full border border-black ${
+                            progressionState?.finisherConsecutiveSuccesses > i ? 'bg-black' : 'bg-white'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                  <p className="font-bold">15 min run</p>
+                  {config.finisher.segments && (
+                    <div className="mt-3 space-y-2">
+                      {config.finisher.segments.map((seg, i) => (
+                        <p key={i} className="text-xs opacity-60">
+                          5 min @ {progressionState?.finisherSpeeds?.[i]?.toFixed(1) || seg.targetSpeed} km/h
+                        </p>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function WorkoutCalendar({ storage, trigger, onDateClick, onDeleteWorkout }) {
       const [viewDate, setViewDate] = useState(new Date());
       const [selectedDate, setSelectedDate] = useState(null);
       const sessionMap = useMemo(() => {
         const map = {};
         const workoutByDate = {};
-        const keyByDate = {};
         Object.entries(storage.data).forEach(([key, val]) => {
           const entry = typeof val === 'string' ? JSON.parse(val) : val;
           const dateStr = new Date(entry.date).toDateString();
           map[dateStr] = true;
           workoutByDate[dateStr] = entry;
-          keyByDate[dateStr] = key;
         });
-        return { has: map, details: workoutByDate, keys: keyByDate };
+        return { has: map, details: workoutByDate };
       }, [storage.data, trigger]);
-      const days = Array.from({ length: new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 0).getDate() }, (_, i) => i + 1);
+      const daysInMonth = new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 0).getDate();
+      const firstDay = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1).getDay();
+      const startingDayOffset = firstDay === 0 ? 6 : firstDay - 1;
+      const calendarDays = Array(startingDayOffset).fill(null).concat(Array.from({ length: daysInMonth }, (_, i) => i + 1));
       const selectedWorkout = selectedDate ? sessionMap.details[selectedDate.toDateString()] : null;
-      const selectedWorkoutKey = selectedDate ? sessionMap.keys[selectedDate.toDateString()] : null;
 
       return (
-        <div className="mt-auto border-t-2 border-black pt-6">
+        <div className="pt-3 mt-2">
           <div className="flex justify-between font-black text-[11px] uppercase mb-4 opacity-30 tracking-widest"><span>{viewDate.toLocaleString('default', { month: 'long' })}</span></div>
+          <div className="grid grid-cols-7 gap-2 mb-2">
+            {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
+              <div key={day} className="text-center text-[10px] font-black uppercase opacity-40">
+                {day}
+              </div>
+            ))}
+          </div>
           <div className="grid grid-cols-7 gap-2">
-            {days.map(d => {
+            {calendarDays.map((d, idx) => {
+              if (!d) {
+                return <div key={`empty-${idx}`} className="calendar-day opacity-0"></div>;
+              }
               const dateObj = new Date(viewDate.getFullYear(), viewDate.getMonth(), d);
               const has = sessionMap.has[dateObj.toDateString()];
               return (
                 <div
                   key={d}
-                  onClick={() => has && setSelectedDate(dateObj)}
-                  className={`calendar-day ${has ? 'bg-black text-white cursor-pointer hover:opacity-80' : ''}`}
+                  onClick={() => {
+                    if (has) {
+                      setSelectedDate(dateObj);
+                    } else {
+                      onDateClick(dateObj);
+                    }
+                  }}
+                  className={`calendar-day ${has ? 'bg-black text-white' : ''}`}
                 >
                   <span className={has ? '' : 'opacity-10'}>{d}</span>
                 </div>
               );
             })}
           </div>
-
           {selectedWorkout && (
-            <WorkoutModal workout={selectedWorkout} workoutKey={selectedWorkoutKey} storage={storage} onClose={() => setSelectedDate(null)} />
+            <WorkoutModal
+              workout={selectedWorkout}
+              onClose={() => setSelectedDate(null)}
+              onDelete={() => {
+                if (confirm('Delete this workout?')) {
+                  onDeleteWorkout(selectedDate);
+                  setSelectedDate(null);
+                }
+              }}
+            />
           )}
         </div>
       );
     }
 
-    function WorkoutModal({ workout, workoutKey, storage, onClose }) {
-      const handleDelete = async () => {
-        if (confirm('Delete this workout?')) {
-          delete storage.data[workoutKey];
-          // Save the updated data back to Drive instead of deleting the file
-          try {
-            await fetch(`https://www.googleapis.com/upload/drive/v3/files/${storage.fileId}?uploadType=media`, {
-              method: 'PATCH',
-              headers: {
-                Authorization: `Bearer ${storage.token}`,
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify(storage.data)
-            });
-          } catch (e) {
-            console.error('Delete error:', e);
-          }
-          onClose();
-          window.location.reload();
-        }
-      };
-
+    function WorkoutModal({ workout, onClose, onDelete }) {
       return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={onClose}>
           <div className="bg-white border-4 border-black p-6 max-h-[80vh] overflow-y-auto max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
@@ -588,57 +1686,29 @@
               <div>
                 <h2 className="font-black text-lg uppercase">Routine {workout.day.split(' ')[1]}</h2>
                 <p className="text-xs opacity-60">{new Date(workout.date).toLocaleDateString()}</p>
+                {workout.totalTime && (
+                  <p className="text-sm font-black mt-1">Time: {Math.floor(workout.totalTime / 60)}:{(workout.totalTime % 60).toString().padStart(2, '0')}</p>
+                )}
               </div>
-              <div className="flex gap-2">
-                <button onClick={handleDelete} className="text-lg font-black opacity-60 hover:opacity-100 hover:text-red-600">🗑</button>
-                <button onClick={onClose} className="text-2xl font-black opacity-60 hover:opacity-100">×</button>
-              </div>
+              <button onClick={onClose} className="text-2xl font-black opacity-60 hover:opacity-100">×</button>
             </div>
-
             <div className="space-y-4">
-              {workout.warmUp && (
-                <div className="border-b-2 border-black pb-3">
-                  <p className="text-xs font-black uppercase opacity-60 mb-1">Warm Up</p>
-                  <p className="font-bold">{workout.warmUp.name}</p>
-                  {workout.warmUp.time && <p className="text-sm opacity-70">Time: {workout.warmUp.time}</p>}
-                </div>
-              )}
-
-              <div className="space-y-3">
-                {workout.exercises?.map(ex => (
-                  <div key={ex.id} className="border-l-4 border-black pl-3">
-                    <p className="text-sm font-black uppercase">{ex.name}</p>
-                    {ex.completedSets && ex.completedSets.length > 0 ? (
-                      <div className="text-xs opacity-70 mt-1">
-                        {ex.completedSets.map((set, i) => (
-                          <p key={i}>{i + 1}. {set.weight}kg × {set.reps} {set.status === 'failed' ? '(failed)' : ''}</p>
-                        ))}
-                      </div>
-                    ) : ex.weight ? (
-                      <p className="text-xs opacity-70 mt-1">{ex.weight}kg - {ex.reps || '?'} reps</p>
-                    ) : (
-                      <p className="text-xs opacity-70 mt-1">Completed</p>
-                    )}
-                  </div>
-                ))}
-              </div>
-
-              {workout.finisher && (
-                <div className="border-t-2 border-black pt-3">
-                  <p className="text-xs font-black uppercase opacity-60 mb-1">Run</p>
-                  <p className="font-bold">{workout.finisher.name}</p>
-                  {workout.finisher.distance && <p className="text-sm opacity-70">Distance: {workout.finisher.distance} KM</p>}
-                  {workout.finisher.speed && <p className="text-sm opacity-70">Speed: {workout.finisher.speed} KM/H</p>}
-                  {workout.finisher.time && <p className="text-sm opacity-70">Time: {workout.finisher.time}</p>}
-                </div>
-              )}
+              {workout.warmUp && (<div className="border-b-2 border-black pb-3"><p className="text-xs font-black uppercase opacity-60 mb-1">Warm Up</p><p className="font-bold">{workout.warmUp.name || '1km Run'}</p>{workout.warmUp.speed && <p className="text-sm opacity-70">Speed: {workout.warmUp.speed} KM/H</p>}{workout.warmUp.time && <p className="text-sm opacity-70">Time: {workout.warmUp.time}</p>}{workout.warmUp.distance && <p className="text-sm opacity-70">Distance: {workout.warmUp.distance} KM</p>}</div>)}
+              <div className="space-y-3">{workout.exercises?.map(ex => (<div key={ex.id} className="border-l-4 border-black pl-3"><p className="text-sm font-black uppercase">{ex.name}</p>{ex.completedSets && ex.completedSets.length > 0 ? (<div className="text-xs opacity-70 mt-1">{ex.completedSets.map((set, i) => (<p key={i}>{i + 1}. {set.weight}kg × {set.reps} reps {set.status === 'failed' ? '(failed)' : ''}</p>))}</div>) : ex.weight ? (<p className="text-xs opacity-70 mt-1">{ex.weight}kg - {ex.reps || '?'} reps</p>) : (<p className="text-xs opacity-70 mt-1">Completed</p>)}</div>))}</div>
+              {workout.finisher && (<div className="border-t-2 border-black pt-3"><p className="text-xs font-black uppercase opacity-60 mb-1">Finisher</p><p className="font-bold">{workout.finisher.name || '15 min'}</p>{workout.finisher.speed && <p className="text-sm opacity-70">Speed: {workout.finisher.speed} KM/H</p>}{workout.finisher.distance && <p className="text-sm opacity-70">Distance: {workout.finisher.distance} KM</p>}</div>)}
             </div>
+            <button
+              onClick={onDelete}
+              className="w-full mt-6 border-4 border-red-600 text-red-600 font-black uppercase py-3 text-sm hover:bg-red-600 hover:text-white transition-colors"
+            >
+              Delete Workout
+            </button>
           </div>
         </div>
       );
     }
 
     ReactDOM.createRoot(document.getElementById('root')).render(<App />);
-  </script>
+</script>
 </body>
 </html>
